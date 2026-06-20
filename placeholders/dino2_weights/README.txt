@@ -1,0 +1,22 @@
+Place optional local DINOv2 weights here after downloading them yourself.
+The paper companion repository does not redistribute DINOv2 weights.
+
+Default expected use:
+  python scripts/extract_embeddings.py ... --backend dino2 --dino2-weights placeholders/dino2_weights
+
+If this directory contains a .pth checkpoint, the script loads the selected
+torch.hub DINOv2 architecture with pretrained=False and applies that checkpoint
+with strict=False. If no .pth file is present, torch.hub downloads/caches the
+official weights for --dino2-model.
+
+Current cleaned-pipeline model:
+  --dino2-model dinov2_vitl14_reg
+
+This is the large ViT-L/14 model with registers. It replaced earlier legacy
+exploration with the much smaller dinov2_vits14_reg model.
+
+Download/source:
+  Official repository: https://github.com/facebookresearch/dinov2
+  Use torch.hub model name dinov2_vitl14_reg for current analyses.
+  Do not use dinov2_vits14_reg unless intentionally reproducing old tiny-model
+  exploratory code.

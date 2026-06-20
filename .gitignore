@@ -1,0 +1,8 @@
+output/
+outputs/
+/output/
+/outputs/
+*.npz
+__pycache__/
+*.py[cod]
+.~lock.*
