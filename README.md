@@ -249,13 +249,23 @@ Here `r` is the harmonic mean plot-level replication per genotype within an
 environment, and for the across-environment model `e` is the harmonic mean
 number of environments per genotype while `r` is the harmonic mean plot-level
 replication per genotype-environment. Device is included when more than one
-device level is present. The `genotype_x_environment` term is **off by default**
-(it is near-unidentifiable with this dataset's thin replication and destabilizes
-the fit); enable it with `--include-gxe`, in which case its variance is set to 0
-in the H2 denominator when absent. Each heritability row carries reliability
-flags (`converged`, `singular`, `boundary_solution`, `genotype_boundary`,
-`h2_reliable`). Variance partitioning reports REML variance component
-proportions from the fitted mixed model.
+device level is present.
+
+The `genotype_x_environment` term is **off by default**. `--include-gxe` is a
+single switch that both adds the GxE component *and* restricts the variance-
+component model to genotypes observed in **two or more environments**. This is
+deliberate: GxE variance is only informed by genotypes that appear across
+environments, and the single-environment genotypes (about 70% of this panel)
+otherwise add degenerate, uninformative GxE levels that destabilize the fit.
+With `--include-gxe`, heritability and variance partitioning therefore describe
+this connected multi-environment genotype subset (the retained genotype/row
+counts are printed to stderr at run time); the BLUE table is computed on the
+full genotype set and is unaffected. Without the flag, the across-environment
+model keeps all genotypes and omits GxE.
+
+Each heritability row carries reliability flags (`converged`, `singular`,
+`boundary_solution`, `genotype_boundary`, `h2_reliable`). Variance partitioning
+reports REML variance component proportions from the fitted mixed model.
 
 `--scores` may point to `.npz` embeddings or a `.csv` score table. PC or IC
 score inputs must carry the fit-split provenance columns written by
@@ -264,7 +274,7 @@ score inputs must carry the fit-split provenance columns written by
 Additional validation/reproduction parameters:
 
 - `--vc-engine`: variance-component engine, `lme4` (default, via rpy2) or `statsmodels`.
-- `--include-gxe`: add `genotype_x_environment` to the `--environment all` model (off by default).
+- `--include-gxe`: add `genotype_x_environment` to the `--environment all` model **and** restrict the variance-component fit to genotypes seen in ≥2 environments (single flag; off by default).
 - `--vc-cpu`: cores for the lme4 per-trait loop (R `parallel::mclapply`); default `1`.
 - `--mixedlm-method`: optimizer for `statsmodels.MixedLM` (only with `--vc-engine statsmodels`); default `auto`.
 - `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `inputdata/field_image_metadata.csv`.

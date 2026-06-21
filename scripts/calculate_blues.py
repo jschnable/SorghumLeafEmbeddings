@@ -99,6 +99,20 @@ def mixedlm_random_effects(frame: pd.DataFrame, args: argparse.Namespace) -> lis
 def mixedlm_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, list[str], list[str]]:
     frame = data.copy()
     if args.environment == "all" and args.include_gxe:
+        # genotype_x_environment variance is only informed by genotypes observed in
+        # >=2 environments; single-environment genotypes add degenerate GxE levels
+        # that carry no interaction information and destabilize the fit. --include-gxe
+        # therefore both adds the GxE component and restricts to multi-environment
+        # genotypes (one flag, not two).
+        envs_per_genotype = frame.groupby("genotype")["environment"].nunique()
+        connected = envs_per_genotype[envs_per_genotype >= 2].index
+        n_before, n_after = frame["genotype"].nunique(), len(connected)
+        frame = frame.loc[frame["genotype"].isin(connected)].copy()
+        print(
+            f"[include-gxe] restricted to genotypes in >=2 environments: "
+            f"{n_after}/{n_before} genotypes, {len(frame)} crop rows retained",
+            flush=True,
+        )
         frame["genotype_x_environment"] = interaction_column(frame)
     fixed_covariates = []
     if args.include_leaf_area and frame["log_estimated_leaf_area"].notna().any():
@@ -675,8 +689,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-gxe",
         action="store_true",
-        help="For --environment all, add genotype_x_environment as a random component. Off by "
-        "default: with thin replication it is near-unidentifiable and destabilizes the fit.",
+        help="For --environment all, add genotype_x_environment AND restrict the variance-"
+        "component model to genotypes observed in >=2 environments (single-environment "
+        "genotypes carry no GxE information). Off by default. Heritability/variance "
+        "partitioning then describe this connected genotype subset; BLUEs are unaffected.",
     )
     parser.add_argument(
         "--vc-cpu",
