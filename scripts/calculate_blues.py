@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import time
 import warnings
 from pathlib import Path
 
@@ -405,6 +406,39 @@ def _load_lme4():
     return ro, version
 
 
+def _lme4_batched_long(ro, fn_name, frame, traits, re_vec, fc_vec, args, phase):
+    """Call an R fit function over trait batches, printing timestamped progress.
+
+    The trait list is split into batches of ``max(progress_every, vc_cpu)`` so all
+    requested cores stay busy while progress is reported at least every
+    ``progress_every`` traits; ``--progress-every 0`` disables progress and runs
+    every trait in a single call. Returns the concatenated long-form result.
+    """
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+
+    cpu = int(max(1, getattr(args, "vc_cpu", 1)))
+    every = int(getattr(args, "progress_every", 10) or 0)
+    total = len(traits)
+    batch = max(every, cpu) if every else max(total, 1)
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        r_df = ro.conversion.py2rpy(frame)
+    parts = []
+    for start in range(0, total, batch):
+        chunk = list(traits[start:start + batch])
+        result = ro.globalenv[fn_name](
+            r_df, ro.StrVector(chunk), ro.StrVector(list(re_vec)), ro.StrVector(list(fc_vec)), cpu
+        )
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            parts.append(ro.conversion.rpy2py(result))
+        if every:
+            print(
+                f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {phase}: {min(start + batch, total)}/{total} traits",
+                flush=True,
+            )
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
 def run_lme4_varcomp(
     plot_means: pd.DataFrame,
     traits: list[str],
@@ -414,23 +448,13 @@ def run_lme4_varcomp(
 ) -> tuple[dict[str, dict[str, object]], str]:
     """Fit one REML lmer per trait in R (lme4) and return raw variance components per trait."""
     ro, lme4_version = _load_lme4()
-    from rpy2.robjects import pandas2ri
-    from rpy2.robjects.conversion import localconverter
-
     frame = plot_means[[*traits, *random_effects, *fixed_covariates]].copy()
     for col in random_effects:
         frame[col] = frame[col].astype(str)
     ro.r(_LME4_FIT_FUNCTION)
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        r_df = ro.conversion.py2rpy(frame)
-        result = ro.globalenv["fit_varcomp"](
-            r_df,
-            ro.StrVector(list(traits)),
-            ro.StrVector(list(random_effects)),
-            ro.StrVector(list(fixed_covariates)),
-            int(max(1, getattr(args, "vc_cpu", 1))),
-        )
-        long = ro.conversion.rpy2py(result)
+    long = _lme4_batched_long(
+        ro, "fit_varcomp", frame, traits, random_effects, fixed_covariates, args, "variance partitioning"
+    )
 
     out: dict[str, dict[str, object]] = {}
     for trait, group in long.groupby("trait"):
@@ -463,24 +487,12 @@ def run_lme4_blues(
 ) -> pd.DataFrame:
     """Fit genotype-fixed BLUE models with lme4 and return one row per genotype."""
     ro, _ = _load_lme4()
-    from rpy2.robjects import pandas2ri
-    from rpy2.robjects.conversion import localconverter
-
     needed = list(dict.fromkeys([*traits, "genotype", *random_effects, *fixed_covariates]))
     frame = plot_means[needed].copy()
     for col in ["genotype", *random_effects]:
         frame[col] = frame[col].astype(str)
     ro.r(_LME4_BLUE_FUNCTION)
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        r_df = ro.conversion.py2rpy(frame)
-        result = ro.globalenv["fit_blues"](
-            r_df,
-            ro.StrVector(list(traits)),
-            ro.StrVector(list(random_effects)),
-            ro.StrVector(list(fixed_covariates)),
-            int(max(1, getattr(args, "vc_cpu", 1))),
-        )
-        long = ro.conversion.rpy2py(result)
+    long = _lme4_batched_long(ro, "fit_blues", frame, traits, random_effects, fixed_covariates, args, "BLUEs")
 
     errors = long.loc[long["genotype"].isna() & long["warning"].notna()]
     if not errors.empty:
@@ -695,6 +707,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Cores for the lme4 per-trait loop (R parallel::mclapply). Default 1 (serial).",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        help="Print a timestamped 'done/total traits' line every N traits while fitting BLUEs and "
+        "variance components. Also the batch size (raised to --vc-cpu to keep all cores busy). "
+        "Set 0 to disable and fit all traits in one call.",
     )
     parser.add_argument("--verbose-summaries", action="store_true")
     parser.add_argument("--spatial-cols", default="row,column")
