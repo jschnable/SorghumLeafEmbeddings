@@ -237,11 +237,12 @@ def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, blocks: list[dict] | N
     plt.close(fig)
 
 
-def corr_block(corr_csv: Path, rows_spec: list[tuple[str, str]], traits: list[str]) -> dict:
+def corr_block(corr_csv: Path, rows_spec: list[tuple[str, str]], traits: list[str],
+               ylabel: str = "Disease ρ", name: str = "disease_rho") -> dict:
     labels, matrix = load_corr_matrix(corr_csv, rows_spec, traits)
     vmax = max(0.3, float(np.nanmax(np.abs(matrix)))) if np.isfinite(matrix).any() else 1.0
-    return {"name": "disease_rho", "labels": labels, "matrix": matrix, "cmap": "RdBu_r",
-            "vmin": -vmax, "vmax": vmax, "center": 0.0, "ylabel": "Disease ρ", "fmt": "{:.2f}"}
+    return {"name": name, "labels": labels, "matrix": matrix, "cmap": "RdBu_r",
+            "vmin": -vmax, "vmax": vmax, "center": 0.0, "ylabel": ylabel, "fmt": "{:.2f}"}
 
 
 def h2_block(rows_spec: list[tuple[str, str]], traits: list[str]) -> dict:
@@ -270,6 +271,8 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated LABEL=scope pairs for correlation heatmap rows, e.g. "
         "'NE=Nebraska2025' (single env) or 'NE=Nebraska2025,AL=Alabama2025,GA=Georgia2025' (all).",
     )
+    parser.add_argument("--leafcorr-csv", type=Path, help="correlate_ics_disease.py output run against leaf area for the leaf-area-correlation heatmap.")
+    parser.add_argument("--leafcorr-rows", help="LABEL=scope pairs for the leaf-area-rho heatmap rows (same format as --corr-rows).")
     return parser.parse_args()
 
 
@@ -284,6 +287,9 @@ def main() -> None:
     blocks = []
     if args.corr_csv and args.corr_rows:
         blocks.append(corr_block(args.corr_csv, parse_pairs(args.corr_rows), traits))
+    if args.leafcorr_csv and args.leafcorr_rows:
+        blocks.append(corr_block(args.leafcorr_csv, parse_pairs(args.leafcorr_rows), traits,
+                                 ylabel="Leaf area ρ", name="leafarea_rho"))
     if args.h2_rows:
         blocks.append(h2_block(parse_pairs(args.h2_rows), traits))
 
