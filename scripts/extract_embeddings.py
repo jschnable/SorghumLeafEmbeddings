@@ -27,6 +27,15 @@ from tqdm import tqdm
 
 import segment_leaf
 from embedding_io import image_key, write_embedding_table
+from embedding_annotation import (
+    DEFAULT_EXCLUDE_LIST,
+    DEFAULT_EXG,
+    DEFAULT_HUMAN,
+    DEFAULT_METADATA,
+    DEFAULT_VCF,
+    annotate_embeddings,
+    read_exclude_ids,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -391,6 +400,12 @@ def parse_args() -> argparse.Namespace:
         help="Output embeddings path (.npz or .csv). Default data/generatable/embeddings.npz.",
     )
     parser.add_argument("--image-col", default="image_path", help="CSV column containing image paths. Default image_path.")
+    parser.add_argument(
+        "--exclude-list",
+        default=str(DEFAULT_EXCLUDE_LIST),
+        help="CSV (with an image_id column) or text file of image_ids to skip entirely. "
+             "Defaults to data/provided/image_ids_exclude.csv; pass '' to disable exclusion.",
+    )
     parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3", help="Embedding backbone: sam3 or dino2.")
     parser.add_argument(
         "--sam3-weights",
@@ -424,6 +439,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mask-threshold", type=float, default=0.5, help="SAM3 mask binarization threshold.")
     parser.add_argument("--no-sam3-fallback", action="store_true", help="Do not fall back to SAM3 when OpenCV segmentation fails QC.")
     parser.add_argument("--summary-output", type=Path, help="Optional per-image segmentation/cropping summary CSV.")
+    parser.add_argument(
+        "--no-field-annotation",
+        action="store_true",
+        help="Write only raw crop embeddings; skip joining field/disease/human metadata.",
+    )
+    parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA,
+                        help="field_image_metadata.csv for genotype/env/spatial columns.")
+    parser.add_argument("--exg-file", type=Path, default=DEFAULT_EXG, help="exg_ratings.csv for disease pct.")
+    parser.add_argument("--human-file", type=Path, default=DEFAULT_HUMAN, help="human_disease_scores.csv for human_score.")
+    parser.add_argument("--vcf", type=Path, default=DEFAULT_VCF, help="Marker VCF used to normalize genotype names.")
     return parser.parse_args()
 
 
@@ -433,6 +458,13 @@ def main() -> None:
     image_paths = read_image_paths(args.image_input, args.image_col)
     if not image_paths:
         raise SystemExit(f"No images found from {args.image_input}")
+    exclude_ids = read_exclude_ids(args.exclude_list)
+    if exclude_ids:
+        before = len(image_paths)
+        image_paths = [p for p in image_paths if image_key(p) not in exclude_ids]
+        print(f"[exclude] skipped {before - len(image_paths)} of {before} images via {args.exclude_list}")
+        if not image_paths:
+            raise SystemExit("All input images were excluded by --exclude-list")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.summary_output:
         args.summary_output.parent.mkdir(parents=True, exist_ok=True)
@@ -458,6 +490,8 @@ def main() -> None:
     if not all_rows:
         raise SystemExit("No embeddings were extracted")
     df = pd.DataFrame(all_rows)
+    if not args.no_field_annotation:
+        df = annotate_embeddings(df, args.metadata, args.exg_file, args.human_file, args.vcf)
     embedding_cols = [c for c in df.columns if c.startswith("embedding_")]
     metadata_cols = [c for c in df.columns if c not in embedding_cols]
     write_embedding_table(

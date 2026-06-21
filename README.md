@@ -58,6 +58,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `data/provided/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `data/provided/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
 - `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`.
+- `data/provided/image_ids_exclude.csv`: image-level QC exclusion list (`environment`, `image_id`, `plotNumber`, `genotype`). These images are skipped by `scripts/extract_embeddings.py` via `--exclude-list`. It is the complement of the per-environment image keep-lists used in the original analysis (un-genotyped border plots, failed segmentation/cropping, and curator-dropped frames).
 - `data/provided/images_to_exclude.txt`: genotype/image exclusion list from the old project.
 - `data/provided/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
 - `data/provided/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
@@ -116,6 +117,9 @@ Important parameters:
 
 - `image_input`: CSV, directory, file, or glob.
 - `--image-col`: CSV column containing paths. Default `image_path`.
+- `--exclude-list`: CSV (with an `image_id` column) or text file of image_ids to skip
+  entirely, so excluded images are never segmented or embedded. Defaults to
+  `data/provided/image_ids_exclude.csv`; pass `--exclude-list ''` to disable.
 - `--backend`: `sam3` or `dino2`.
 - `--seed`: random seed for Python, NumPy, and torch.
 - `--sam3-weights`: Hugging Face SAM3 model directory.
