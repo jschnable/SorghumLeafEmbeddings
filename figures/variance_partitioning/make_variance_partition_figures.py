@@ -12,13 +12,11 @@ This lives next to the figure outputs it produces. Run it once per environment:
 
     python figures/variance_partitioning/make_variance_partition_figures.py \
         --partition output/ic_blues_nebraska_mixedlm_from_float32/variance_partitioning_Nebraska2025.csv \
-        --out-prefix figures/variance_partitioning/ic_variance_partition_nebraska2025 \
-        --title "IC variance partitioning - Nebraska 2025"
+        --out-prefix figures/variance_partitioning/ic_variance_partition_nebraska2025
 
     python figures/variance_partitioning/make_variance_partition_figures.py \
         --partition output/ic_blues_all_mixedlm_from_float32/variance_partitioning_all.csv \
-        --out-prefix figures/variance_partitioning/ic_variance_partition_all_environments \
-        --title "IC variance partitioning - all environments"
+        --out-prefix figures/variance_partitioning/ic_variance_partition_all_environments
 """
 
 from __future__ import annotations
@@ -32,6 +30,23 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+
+# One font and one size for every text element in the figure. Nimbus Sans is the
+# URW Helvetica clone (falls back to other sans faces if unavailable). H2/rho are
+# written as plain Unicode so no separate math font is ever used.
+FONT_SIZE = 9
+matplotlib.rcParams.update({
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Nimbus Sans", "Helvetica", "Nimbus Sans L", "Arial", "Liberation Sans", "DejaVu Sans"],
+    "font.size": FONT_SIZE,
+    "axes.titlesize": FONT_SIZE,
+    "axes.labelsize": FONT_SIZE,
+    "xtick.labelsize": FONT_SIZE,
+    "ytick.labelsize": FONT_SIZE,
+    "legend.fontsize": FONT_SIZE,
+    "axes.unicode_minus": False,
+})
 
 
 # Raw variance-component source -> grouped figure category.
@@ -155,16 +170,16 @@ def draw_heat_block(ax_h, block: dict, n: int) -> None:
             if np.isfinite(val):
                 intensity = abs(val - center) / span
                 ax_h.text(ci, ri + 0.5, block["fmt"].format(val), ha="center", va="center",
-                          fontsize=6, color="white" if intensity > 0.6 else "black")
+                          color="white" if intensity > 0.6 else "black")
     ax_h.set_xlim(-0.5, n - 0.5)
     ax_h.set_xticks([])
     ax_h.set_yticks(np.arange(nrows) + 0.5)
-    ax_h.set_yticklabels(block["labels"], fontsize=8)
+    ax_h.set_yticklabels(block["labels"])
     ax_h.invert_yaxis()
     ax_h.tick_params(length=0)
     for spine in ax_h.spines.values():
         spine.set_visible(False)
-    ax_h.set_ylabel(block["ylabel"], fontsize=11, rotation=0, ha="right", va="center", labelpad=10)
+    ax_h.set_ylabel(block["ylabel"], rotation=90, va="center", labelpad=6)
 
 
 def _axes_inches(fig, W: float, H: float, left_in: float, top_in: float, w_in: float, h_in: float):
@@ -172,7 +187,7 @@ def _axes_inches(fig, W: float, H: float, left_in: float, top_in: float, w_in: f
     return fig.add_axes([left_in / W, (H - top_in - h_in) / H, w_in / W, h_in / H])
 
 
-def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, title: str, blocks: list[dict] | None = None) -> None:
+def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, blocks: list[dict] | None = None) -> None:
     blocks = blocks or []
     traits = sorted(grouped["trait"].unique(), key=trait_sort_key)
     groups_present = [g for g in GROUP_ORDER if g in set(grouped["source"])]
@@ -186,7 +201,7 @@ def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, title: str, blocks: li
 
     # Absolute (inch) layout so the gaps between bars, heatmap blocks, and legend stay constant.
     W = max(8, 0.6 * n)
-    left, right_pad, top_pad, bottom_pad = 1.3, 0.3, 0.5, 0.15
+    left, right_pad, top_pad, bottom_pad = 1.0, 0.3, 0.2, 0.15
     bars_h, label_gap, block_gap, legend_h = 4.6, 0.6, 0.2, 0.55
     block_hs = [0.34 * b["matrix"].shape[0] + 0.06 for b in blocks]
     plotw = W - left - right_pad
@@ -200,11 +215,10 @@ def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, title: str, blocks: li
         ax.bar(x, vals, bottom=bottom, width=0.8, label=group, color=GROUP_COLOR.get(group, "#777777"))
         bottom += vals
     ax.set_xticks(x)
-    ax.set_xticklabels(traits, rotation=90, fontsize=8)
+    ax.set_xticklabels(traits, rotation=90)
     ax.set_ylabel("Proportion of variance")
     ax.set_ylim(0, 1)
     ax.set_xlim(-0.5, n - 0.5)
-    ax.set_title(title, pad=10)
 
     top_in = top_pad + bars_h + label_gap
     for block, bh in zip(blocks, block_hs):
@@ -214,7 +228,7 @@ def plot_stacked(grouped: pd.DataFrame, out_prefix: Path, title: str, blocks: li
 
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, (bottom_pad + 0.05) / H),
-               ncol=len(groups_present), fontsize=8, frameon=False)
+               ncol=len(groups_present), frameon=False)
 
     fig.savefig(out_prefix.with_suffix(".png"), dpi=200, bbox_inches="tight")
     fig.savefig(out_prefix.with_suffix(".pdf"), bbox_inches="tight")
@@ -225,14 +239,14 @@ def corr_block(corr_csv: Path, rows_spec: list[tuple[str, str]], traits: list[st
     labels, matrix = load_corr_matrix(corr_csv, rows_spec, traits)
     vmax = max(0.3, float(np.nanmax(np.abs(matrix)))) if np.isfinite(matrix).any() else 1.0
     return {"name": "disease_rho", "labels": labels, "matrix": matrix, "cmap": "RdBu_r",
-            "vmin": -vmax, "vmax": vmax, "center": 0.0, "ylabel": "disease\nscore " + r"$\rho$", "fmt": "{:.2f}"}
+            "vmin": -vmax, "vmax": vmax, "center": 0.0, "ylabel": "Disease ρ", "fmt": "{:.2f}"}
 
 
 def h2_block(rows_spec: list[tuple[str, str]], traits: list[str]) -> dict:
     labels, matrix = load_h2_matrix(rows_spec, traits)
     vmax = max(0.3, float(np.nanmax(matrix))) if np.isfinite(matrix).any() else 1.0
     return {"name": "H2", "labels": labels, "matrix": matrix, "cmap": "Greens",
-            "vmin": 0.0, "vmax": vmax, "center": 0.0, "ylabel": r"$H^2$", "fmt": "{:.2f}"}
+            "vmin": 0.0, "vmax": vmax, "center": 0.0, "ylabel": "H²", "fmt": "{:.2f}"}
 
 
 def parse_pairs(spec: str) -> list[tuple[str, str]]:
@@ -243,7 +257,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--partition", required=True, type=Path, help="variance_partitioning_<env>.csv from calculate_blues.py")
     parser.add_argument("--out-prefix", required=True, type=Path, help="Output path prefix; writes .csv, .png, .pdf")
-    parser.add_argument("--title", default="IC variance partitioning")
     parser.add_argument(
         "--h2-rows",
         help="Comma-separated LABEL=heritability_csv pairs for the broad-sense H2 heatmap, e.g. "
@@ -267,12 +280,12 @@ def main() -> None:
     traits = sorted(grouped["trait"].unique(), key=trait_sort_key)
 
     blocks = []
-    if args.h2_rows:
-        blocks.append(h2_block(parse_pairs(args.h2_rows), traits))
     if args.corr_csv and args.corr_rows:
         blocks.append(corr_block(args.corr_csv, parse_pairs(args.corr_rows), traits))
+    if args.h2_rows:
+        blocks.append(h2_block(parse_pairs(args.h2_rows), traits))
 
-    plot_stacked(grouped, args.out_prefix, args.title, blocks)
+    plot_stacked(grouped, args.out_prefix, blocks)
     summary = "; ".join(f"{b['name']} rows {b['labels']}" for b in blocks)
     print(f"Wrote {args.out_prefix}.csv/.png/.pdf ({grouped['trait'].nunique()} traits){'; ' + summary if summary else ''}")
 
