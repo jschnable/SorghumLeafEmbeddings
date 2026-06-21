@@ -60,7 +60,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `inputdata/examples/images/`: five copied example leaf images.
 - `inputdata/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `inputdata/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `inputdata/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, and SAM3 leaf-area diagnostics.
+- `inputdata/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`.
 - `inputdata/images_to_exclude.txt`: genotype/image exclusion list from the old project.
 - `inputdata/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
 - `inputdata/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
@@ -69,6 +69,10 @@ The environment names in the cleaned metadata are `Nebraska2025`,
 `Alabama2025`, and `Georgia2025`. Genotype IDs in the distributed metadata are
 normalized to the marker-file style used by the local PLINK/VCF-derived sample
 lists, for example `SC1166` rather than `SC 1166`.
+
+Metadata provenance:
+
+- `estimated_leaf_area` is the leaf mask pixel area (`mask_pixels`) from the simple OpenCV computer-vision segmentation produced during embedding extraction.
 
 ## Not Included in GitHub
 
@@ -116,14 +120,16 @@ Important parameters:
 - `image_input`: CSV, directory, file, or glob.
 - `--image-col`: CSV column containing paths. Default `image_path`.
 - `--backend`: `sam3` or `dino2`.
-- `--sam3-weights`, `--dino2-weights`: model locations.
+- `--seed`: random seed for Python, NumPy, and torch.
+- `--sam3-weights`: Hugging Face SAM3 model directory.
+- `--dino2-weights`: optional directory for a local `dinov2_vitl14_reg` `.pth` checkpoint; if empty, `torch.hub` loads the official weights.
 - `--step`, `--crop-width`, `--crop-height`: legacy crop geometry.
 - `--mask-pixels-min`, `--mask-pixels-max`: mask QC bounds.
 - OpenCV segmentation options: `--tolerance1`, `--tolerance2`, `--down-from-top`, `--up-from-bottom`, `--trim-left`, `--trim-right`, `--card-height`, `--card-width`.
 
 For distribution, write embeddings as `.npz`. The NPZ stores:
 
-- `features`: embedding matrix, `float32` by default.
+- `features`: embedding matrix, always `float32`.
 - `feature_columns`: names of embedding columns.
 - `metadata_json`: JSON metadata table for image path, crop index, backend, mask diagnostics, etc.
 
@@ -173,8 +179,8 @@ python scripts/train_random_forest.py \
 
 Outputs:
 
-- `rf_predictions.csv`: image-level prediction records.
-- `rf_image_predictions.csv`: image-level mean predictions.
+- `rf_predictions.csv`: per-image, per-fold out-of-fold predictions (one row per scored image per CV fold).
+- `rf_image_predictions.csv`: same predictions grouped per image and fold with `n_crops` retained for reference.
 - `rf_genotype_predictions.csv`: genotype-level mean predictions.
 - `rf_fold_accuracy.csv`: fold metrics computed on image-level predictions.
 - `rf_overall_accuracy.csv`: overall image-level metrics.
