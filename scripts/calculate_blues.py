@@ -302,14 +302,18 @@ def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.N
     beta, *_ = np.linalg.lstsq(x, y, rcond=None)
 
     genotype_columns = {name: i for i, name in enumerate(names) if name.startswith("genotype_")}
+    x_baseline = x.copy()
+    for idx in genotype_columns.values():
+        x_baseline[:, idx] = 0.0
+    marginal_baseline = (x_baseline @ beta).mean(axis=0)
     genotypes = sorted(data["genotype"].astype(str).unique())
     rows = []
     for genotype in genotypes:
         row = {"environment": args.environment, "genotype": genotype}
-        x_genotype = x.copy()
-        for name, idx in genotype_columns.items():
-            x_genotype[:, idx] = 1.0 if name == f"genotype_{genotype}" else 0.0
-        pred = (x_genotype @ beta).mean(axis=0)
+        pred = marginal_baseline.copy()
+        idx = genotype_columns.get(f"genotype_{genotype}")
+        if idx is not None:
+            pred += beta[idx, :]
         row.update({trait: float(value) for trait, value in zip(traits, pred)})
         rows.append(row)
     return pd.DataFrame(rows)

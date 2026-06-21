@@ -10,6 +10,10 @@ with strict=True. Mismatched checkpoints fail instead of loading partially. If
 no .pth file is present, torch.hub downloads/caches the
 official dinov2_vitl14_reg weights.
 
+Local .pth files must be backbone-only state dicts for dinov2_vitl14_reg. Full
+training checkpoints with classifier heads, wrapper modules, or a different
+DINOv2 architecture are expected to fail strict loading.
+
 Current cleaned-pipeline model:
   dinov2_vitl14_reg
 
