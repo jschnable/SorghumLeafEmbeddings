@@ -3,6 +3,14 @@
 data/generatable/*
 !data/generatable/README.md
 
+# Large external-source assets (raw images, SAM3/DINOv2 weights, marker VCF/PLINK)
+# are obtained separately and must never be committed. Only the README files that
+# document where to get each asset are tracked.
+data/externalsourcerequired/**
+!data/externalsourcerequired/**/
+!data/externalsourcerequired/README.md
+!data/externalsourcerequired/**/README.txt
+
 *.npz
 __pycache__/
 *.py[cod]
