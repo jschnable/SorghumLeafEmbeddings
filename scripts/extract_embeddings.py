@@ -13,7 +13,6 @@ import argparse
 import csv
 import glob
 import os
-import re
 from pathlib import Path
 
 import cv2
@@ -26,11 +25,12 @@ from torchvision.transforms import v2
 from tqdm import tqdm
 
 import segment_leaf
-from embedding_io import write_embedding_table
+from embedding_io import image_key, write_embedding_table
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+DINO2_MODEL = "dinov2_vitl14_reg"
 
 
 def read_image_paths(image_input: Path | str, image_col: str) -> list[Path]:
@@ -71,13 +71,6 @@ def valid_mask(mask: np.ndarray | None, min_pixels: int, max_pixels: int) -> boo
 
 def crop_name(image_path: Path, crop_index: int) -> str:
     return f"{image_path.stem}_{crop_index}.png"
-
-
-def image_key(path: Path | str) -> str:
-    name = Path(str(path)).name
-    name = re.sub(r"_\d+\.(png|npz)$", "", name)
-    name = re.sub(r"\.(jpg|jpeg|png|tif|tiff)$", "", name, flags=re.I)
-    return re.sub(r"-05_00$", "", name)
 
 
 def crops_from_mask(
@@ -206,7 +199,7 @@ class Dino2Extractor:
             checkpoint = next(weights_path.glob("*.pth"))
             state = torch.load(checkpoint, map_location="cpu")
             state = state.get("teacher", state.get("model", state))
-            self.model.load_state_dict(state, strict=False)
+            self.model.load_state_dict(state, strict=True)
         self.model = self.model.to(self.device).eval()
         self.transform = v2.Compose(
             [
@@ -234,12 +227,17 @@ class Dino2Extractor:
 
 def pool_features(features: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
     if features.dim() == 4:
-        if features.shape[-1] >= features.shape[1]:
+        known_channels = {64, 128, 256, 384, 512, 768, 1024, 1536, 2048, 4096}
+        is_nchw = features.shape[1] in known_channels and features.shape[-1] not in known_channels
+        is_nhwc = features.shape[-1] in known_channels and features.shape[1] not in known_channels
+        if is_nhwc:
             pooled_mean = features.mean(dim=[1, 2])
             pooled_std = features.std(dim=[1, 2])
-        else:
+        elif is_nchw:
             pooled_mean = features.mean(dim=[2, 3])
             pooled_std = features.std(dim=[2, 3])
+        else:
+            raise ValueError(f"Ambiguous 4D feature tensor shape: {tuple(features.shape)}")
     elif features.dim() == 3:
         pooled_mean = features.mean(dim=1)
         pooled_std = features.std(dim=1)
@@ -323,7 +321,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3")
     parser.add_argument("--sam3-weights", type=Path, default=REPO_ROOT / "placeholders" / "sam3_weights")
     parser.add_argument("--dino2-weights", type=Path, default=REPO_ROOT / "placeholders" / "dino2_weights")
-    parser.add_argument("--dino2-model", default="dinov2_vitl14_reg")
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--dtype", default="float32", choices=["float32", "float16"])
     parser.add_argument("--step", type=int, default=500)
@@ -359,7 +356,7 @@ def main() -> None:
     if args.backend == "sam3":
         extractor = Sam3Extractor(args.sam3_weights, args.device, args.dtype)
     else:
-        extractor = Dino2Extractor(args.dino2_model, args.dino2_weights, args.device)
+        extractor = Dino2Extractor(DINO2_MODEL, args.dino2_weights, args.device)
 
     all_rows: list[dict[str, object]] = []
     summaries: list[dict[str, object]] = []

@@ -4,9 +4,19 @@ from __future__ import annotations
 
 from io import StringIO
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
+
+
+def image_key(value: Path | str) -> str:
+    """Return the canonical source-image key used for metadata joins."""
+    name = Path(str(value)).name
+    name = re.sub(r"_\d+\.(png|npz)$", "", name, flags=re.I)
+    name = re.sub(r"_leaf\.(png|npz)$", "", name, flags=re.I)
+    name = re.sub(r"\.(jpg|jpeg|png|tif|tiff)$", "", name, flags=re.I)
+    return re.sub(r"-05_00$", "", name)
 
 
 def split_feature_metadata_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:

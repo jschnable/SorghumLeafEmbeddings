@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 import joblib
@@ -52,7 +53,10 @@ def fit_mask_from_group_split(df: pd.DataFrame, column: str, test_frac: float, s
     groups = np.sort(df[column].dropna().astype(str).unique())
     rng = np.random.RandomState(seed)
     perm = rng.permutation(len(groups))
-    n_test = int(round(len(groups) * test_frac))
+    if len(groups) <= 1 or test_frac <= 0:
+        n_test = 0
+    else:
+        n_test = min(max(1, int(round(len(groups) * test_frac))), len(groups) - 1)
     test_groups = set(groups[perm[:n_test]])
     is_test = df[column].astype(str).isin(test_groups).to_numpy()
     return ~is_test, sorted(test_groups)
@@ -77,6 +81,12 @@ def main() -> None:
         )
     else:
         fit_mask = np.ones(len(df), dtype=bool)
+        warnings.warn(
+            "Fitting scaler/PCA/ICA on all rows because --fit-split-column was not provided. "
+            "Use --fit-split-column genotype for production disease-trait analyses.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     scaler = StandardScaler().fit(x[fit_mask])
     xs = scaler.transform(x).astype(np.float32)
@@ -114,7 +124,8 @@ def main() -> None:
         random_state=args.seed,
     ).fit(white_scores[fit_mask])
     ic_scores = ica.transform(white_scores)
-    signs = np.sign(skew(ic_scores, axis=0))
+    fit_ic_scores = ica.transform(white_scores[fit_mask])
+    signs = np.sign(skew(fit_ic_scores, axis=0))
     signs[signs == 0] = 1
     ic_scores = ic_scores * signs
 
@@ -144,6 +155,7 @@ def main() -> None:
                 "fit_split_column": args.fit_split_column,
                 "fit_test_frac": float(args.fit_test_frac),
                 "n_fit_rows": int(fit_mask.sum()),
+                "ica_sign_source": "fit_rows_only",
             },
             indent=2,
         )

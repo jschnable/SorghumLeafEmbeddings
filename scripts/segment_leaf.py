@@ -63,6 +63,9 @@ def process_single(image_path, tolerance1=50, tolerance2=50, down_from_top=750, 
     if image is None:
         print(f"Could not read image at {image_path}")
         return None
+    if image.ndim != 3 or image.shape[2] != 3:
+        print(f"Expected a 3-channel BGR image at {image_path}; got shape {image.shape}")
+        return None
 
     height, width = image.shape[:2]
     seed1 = (width // 2, down_from_top)
@@ -77,10 +80,7 @@ def process_single(image_path, tolerance1=50, tolerance2=50, down_from_top=750, 
         print(f"No component touches both borders after removal for {image_path}")
         return None
 
-    # Trim noisy edges near the borders - device 7 specific values
-    trim_left = trim_left
-    trim_right = trim_right
-
+    # Trim noisy edges near the borders.
     if trim_left + trim_right >= width:
         print(f"Image {image_path} is too narrow for trim_left={trim_left} + trim_right={trim_right}")
         return None
@@ -137,7 +137,17 @@ def main() -> None:
             if img_path.suffix.lower() not in extensions:
                 continue
             out_file = out_dir / f"{img_path.stem}_leaf.png"
-            binary_mask = process_single(img_path, args.tolerance1, args.tolerance2, args.down_from_top, args.up_from_bottom, args.card_height, args.card_width)
+            binary_mask = process_single(
+                img_path,
+                tolerance1=args.tolerance1,
+                tolerance2=args.tolerance2,
+                down_from_top=args.down_from_top,
+                up_from_bottom=args.up_from_bottom,
+                card_height=args.card_height,
+                card_width=args.card_width,
+                trim_left=args.trim_left,
+                trim_right=args.trim_right,
+            )
             if binary_mask is not None:
                 cv2.imwrite(str(out_file), binary_mask)
                 print(f"Wrote {out_file}")
@@ -146,7 +156,17 @@ def main() -> None:
             raise SystemExit("No images were processed successfully.")
     else:
         out_file = Path(args.output_prefix).with_suffix(".leaf.png")
-        binary_mask = process_single(input_path, args.tolerance1, args.tolerance2, args.down_from_top, args.up_from_bottom)
+        binary_mask = process_single(
+            input_path,
+            tolerance1=args.tolerance1,
+            tolerance2=args.tolerance2,
+            down_from_top=args.down_from_top,
+            up_from_bottom=args.up_from_bottom,
+            card_height=args.card_height,
+            card_width=args.card_width,
+            trim_left=args.trim_left,
+            trim_right=args.trim_right,
+        )
         if binary_mask is not None:
             cv2.imwrite(str(out_file), binary_mask)
             print(f"Wrote {out_file}")

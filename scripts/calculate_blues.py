@@ -13,18 +13,11 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
-from embedding_io import read_embedding_table
+from embedding_io import image_key, read_embedding_table
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENVIRONMENTS = ["Nebraska2025", "Alabama2025", "Georgia2025"]
-
-
-def image_key(value: str) -> str:
-    name = Path(str(value)).name
-    name = re.sub(r"_\d+\.(png|npz)$", "", name)
-    name = re.sub(r"\.(jpg|jpeg|png|tif|tiff)$", "", name, flags=re.I)
-    return re.sub(r"-05_00$", "", name)
 
 
 def trait_columns(df: pd.DataFrame, pattern: str) -> list[str]:
@@ -63,30 +56,12 @@ def design_matrix(df: pd.DataFrame, groups: list[str], numeric: list[str] | None
     return np.column_stack(parts), names
 
 
-def residualize(y: np.ndarray, x: np.ndarray) -> np.ndarray:
-    beta, *_ = np.linalg.lstsq(x, y, rcond=None)
-    return y - x @ beta
-
-
-def broad_sense_h2(y_resid: np.ndarray, genotype: pd.Series) -> float:
-    data = pd.DataFrame({"y": y_resid, "genotype": genotype.astype(str)}).dropna()
-    if data["genotype"].nunique() < 2:
+def harmonic_mean(counts: pd.Series | np.ndarray) -> float:
+    values = np.asarray(counts, dtype=float)
+    values = values[np.isfinite(values) & (values > 0)]
+    if values.size == 0:
         return np.nan
-    means = data.groupby("genotype")["y"].mean()
-    n_i = data.groupby("genotype").size().to_numpy(float)
-    grand = data["y"].mean()
-    ss_among = float((n_i * (means.to_numpy() - grand) ** 2).sum())
-    ss_total = float(((data["y"] - grand) ** 2).sum())
-    ss_within = max(ss_total - ss_among, 0)
-    n = len(data)
-    g = len(n_i)
-    if n <= g or g <= 1:
-        return np.nan
-    ms_among = ss_among / (g - 1)
-    ms_within = ss_within / (n - g)
-    n0 = (n - (n_i**2).sum() / n) / (g - 1)
-    vg = max((ms_among - ms_within) / n0, 0)
-    return float(vg / (vg + ms_within + 1e-12))
+    return float(values.size / np.sum(1.0 / values))
 
 
 def plot_column(data: pd.DataFrame) -> str:
@@ -94,26 +69,6 @@ def plot_column(data: pd.DataFrame) -> str:
         if col in data.columns:
             return col
     raise ValueError("Cannot calculate mixed-model heritability without a plotNumber/plot_id column")
-
-
-def group_r2(y: np.ndarray, df: pd.DataFrame, baseline_groups: list[str], group: str, numeric: list[str] | None = None) -> float:
-    x0, _ = design_matrix(df, baseline_groups, numeric)
-    r0 = residualize(y, x0)
-    ss0 = float(np.nansum(r0**2))
-    x1, _ = design_matrix(df, baseline_groups + [group], numeric)
-    r1 = residualize(y, x1)
-    ss1 = float(np.nansum(r1**2))
-    return max((ss0 - ss1) / ss0, 0.0) if ss0 > 0 else np.nan
-
-
-def numeric_r2(y: np.ndarray, df: pd.DataFrame, numeric_col: str) -> float:
-    x0, _ = design_matrix(df, [], [])
-    r0 = residualize(y, x0)
-    ss0 = float(np.nansum(r0**2))
-    x1, _ = design_matrix(df, [], [numeric_col])
-    r1 = residualize(y, x1)
-    ss1 = float(np.nansum(r1**2))
-    return max((ss0 - ss1) / ss0, 0.0) if ss0 > 0 else np.nan
 
 
 def interaction_column(df: pd.DataFrame) -> pd.Series:
@@ -128,24 +83,22 @@ def zscore_column(values: pd.Series) -> pd.Series:
     return (numeric - numeric.mean()) / sd
 
 
-def mixedlm_random_effects(args: argparse.Namespace) -> list[str]:
+def mixedlm_random_effects(frame: pd.DataFrame, args: argparse.Namespace) -> list[str]:
+    device_effect = ["device"] if "device" in frame.columns and frame["device"].astype(str).nunique() > 1 else []
     if args.environment == "all":
-        effects = ["environment", "row", "column", "genotype"]
-        if args.mixedlm_include_gxe:
-            effects.append("genotype_x_environment")
-        return effects
-    return ["row", "column", "genotype"]
+        return ["environment", "row", "column", *device_effect, "genotype", "genotype_x_environment"]
+    return ["row", "column", *device_effect, "genotype"]
 
 
 def mixedlm_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, list[str], list[str]]:
     frame = data.copy()
-    if args.environment == "all" and args.mixedlm_include_gxe:
+    if args.environment == "all":
         frame["genotype_x_environment"] = interaction_column(frame)
     fixed_covariates = []
     if args.include_leaf_area and frame["log_estimated_leaf_area"].notna().any():
         fixed_covariates = ["log_estimated_leaf_area_scaled"]
 
-    random_effects = mixedlm_random_effects(args)
+    random_effects = mixedlm_random_effects(frame, args)
     plot_col = plot_column(frame)
     group_cols = list(dict.fromkeys([*random_effects, plot_col]))
     value_cols = [*traits]
@@ -160,6 +113,47 @@ def mixedlm_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Nam
     if fixed_covariates:
         plot_means["log_estimated_leaf_area_scaled"] = zscore_column(plot_means["log_estimated_leaf_area"])
     return plot_means, random_effects, fixed_covariates
+
+
+def line_mean_h2(
+    model_df: pd.DataFrame,
+    vcov: dict[str, float],
+    residual_vcov: float,
+    args: argparse.Namespace,
+) -> tuple[float, float, dict[str, float]]:
+    genotype_vcov = float(vcov.get("genotype", np.nan))
+    if args.environment == "all":
+        gxe_vcov = float(vcov.get("genotype_x_environment", 0.0))
+        env_counts = model_df.groupby("genotype")["environment"].nunique()
+        reps_per_genotype_env = model_df.groupby(["genotype", "environment"]).size()
+        env_hmean = harmonic_mean(env_counts)
+        rep_hmean = harmonic_mean(reps_per_genotype_env)
+        phenotypic_v = genotype_vcov + gxe_vcov / env_hmean + residual_vcov / (env_hmean * rep_hmean)
+        h2 = genotype_vcov / phenotypic_v if phenotypic_v > 0 else np.nan
+        return (
+            float(h2),
+            float(phenotypic_v),
+            {
+                "mean_environments_per_genotype_harmonic": env_hmean,
+                "mean_plot_reps_per_genotype_environment_harmonic": rep_hmean,
+                "mean_plot_reps_per_genotype_harmonic": np.nan,
+                "genotype_x_environment_vcov": gxe_vcov,
+            },
+        )
+    rep_counts = model_df.groupby("genotype").size()
+    rep_hmean = harmonic_mean(rep_counts)
+    phenotypic_v = genotype_vcov + residual_vcov / rep_hmean
+    h2 = genotype_vcov / phenotypic_v if phenotypic_v > 0 else np.nan
+    return (
+        float(h2),
+        float(phenotypic_v),
+        {
+            "mean_environments_per_genotype_harmonic": np.nan,
+            "mean_plot_reps_per_genotype_environment_harmonic": np.nan,
+            "mean_plot_reps_per_genotype_harmonic": rep_hmean,
+            "genotype_x_environment_vcov": np.nan,
+        },
+    )
 
 
 def fit_mixedlm_h2(
@@ -195,9 +189,13 @@ def fit_mixedlm_h2(
     residual_vcov = float(result.scale)
     genotype_vcov = float(vcov.get("genotype", np.nan))
     total_vcov = float(sum(vcov.values()) + residual_vcov)
-    phenotypic_v = float(total_vcov - residual_vcov / args.h2_residual_divisor)
-    h2 = float(genotype_vcov / phenotypic_v) if phenotypic_v > 0 else np.nan
+    h2, phenotypic_v, h2_context = line_mean_h2(model_df, vcov, residual_vcov, args)
     warning_text = "; ".join(str(w.message) for w in caught) or np.nan
+    boundary_tol = max(total_vcov, 1.0) * 1e-6
+    boundary_sources = sorted(name for name, value in vcov.items() if np.isfinite(value) and value <= boundary_tol)
+    genotype_boundary = bool(np.isfinite(genotype_vcov) and genotype_vcov <= boundary_tol)
+    has_warning = bool(caught)
+    boundary_warning = isinstance(warning_text, str) and "boundary" in warning_text.lower()
     model_text = (
         "trait ~ "
         + (fixed_rhs if fixed_covariates else "1")
@@ -213,11 +211,17 @@ def fit_mixedlm_h2(
         "residual_vcov": residual_vcov,
         "phenotypic_v_for_h2": phenotypic_v,
         "total_vcov": total_vcov,
+        **h2_context,
         "n_plot_means": int(len(model_df)),
         "n_genotypes": int(model_df["genotype"].nunique()),
         "model": model_text,
-        "heritability_method": "mixedlm_reml_lme4_like",
+        "heritability_method": "mixedlm_reml_line_mean",
         "converged": bool(result.converged),
+        "has_warning": has_warning,
+        "boundary_solution": bool(boundary_sources) or boundary_warning,
+        "boundary_vcov_sources": ",".join(boundary_sources) if boundary_sources else np.nan,
+        "genotype_boundary": genotype_boundary,
+        "h2_reliable": bool(result.converged) and not has_warning and not genotype_boundary,
         "status": "ok",
         "warning": warning_text,
         "error": np.nan,
@@ -232,7 +236,7 @@ def fit_mixedlm_h2(
                 "proportion_variance": float(value / total_vcov) if total_vcov > 0 else np.nan,
                 "broad_sense_h2": h2,
                 "model": model_text,
-                "heritability_method": "mixedlm_reml_lme4_like",
+                "heritability_method": "mixedlm_reml_line_mean",
                 "status": "ok",
                 "error": np.nan,
             }
@@ -297,114 +301,18 @@ def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.N
     x, names = design_matrix(data, fixed_groups + ["genotype"], numeric)
     beta, *_ = np.linalg.lstsq(x, y, rcond=None)
 
-    genotypes = sorted(data["genotype"].unique())
+    genotype_columns = {name: i for i, name in enumerate(names) if name.startswith("genotype_")}
+    genotypes = sorted(data["genotype"].astype(str).unique())
     rows = []
     for genotype in genotypes:
         row = {"environment": args.environment, "genotype": genotype}
-        pred = beta[0, :].copy()
-        for name, coef in zip(names[1:], beta[1:, :]):
-            if name == f"genotype_{genotype}":
-                pred += coef
+        x_genotype = x.copy()
+        for name, idx in genotype_columns.items():
+            x_genotype[:, idx] = 1.0 if name == f"genotype_{genotype}" else 0.0
+        pred = (x_genotype @ beta).mean(axis=0)
         row.update({trait: float(value) for trait, value in zip(traits, pred)})
         rows.append(row)
-    out = pd.DataFrame(rows)
-    out[traits] = winsorize(out[traits].to_numpy(float), args.winsor_strength)
-    return out
-
-
-def legacy_spatial_design(data: pd.DataFrame, cols: list[str], categorical: bool) -> np.ndarray:
-    if categorical:
-        d = pd.get_dummies(data[cols].astype(str), drop_first=True, dtype=float)
-        return np.column_stack([np.ones(len(data)), d.to_numpy(float)])
-    parts = [np.ones((len(data), 1), dtype=float)]
-    for col in cols:
-        parts.append(pd.to_numeric(data[col], errors="coerce").to_numpy(float).reshape(-1, 1))
-    return np.column_stack(parts)
-
-
-def calculate_legacy_residual_mean_blues(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> pd.DataFrame:
-    spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
-    y = data[traits].to_numpy(float)
-    x = legacy_spatial_design(data, spatial_cols, args.spatial_categorical)
-    beta, *_ = np.linalg.lstsq(x, y, rcond=None)
-    residuals = y - x @ beta
-    cats = pd.Categorical(data["genotype"].astype(str))
-    means = pd.DataFrame(residuals).groupby(cats.codes).mean().to_numpy()
-    out = pd.DataFrame(means, columns=traits)
-    out.insert(0, "genotype", cats.categories.to_numpy())
-    out.insert(0, "environment", args.environment)
-    return out
-
-
-def calculate_legacy_fixed_genotype_blues(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> pd.DataFrame:
-    spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
-    y = winsorize(data[traits].to_numpy(float), args.winsor_strength)
-    genotypes = sorted(data["genotype"].astype(str).unique())
-    pieces = [legacy_spatial_design(data, spatial_cols, args.spatial_categorical)]
-    for genotype in genotypes[1:]:
-        pieces.append((data["genotype"].astype(str).to_numpy() == genotype).astype(float).reshape(-1, 1))
-    x = np.column_stack(pieces)
-    beta, *_ = np.linalg.lstsq(x, y, rcond=None)
-    effects = np.zeros((len(genotypes), len(traits)), dtype=float)
-    if len(genotypes) > 1:
-        effects[1:, :] = beta[x.shape[1] - len(genotypes) + 1 :, :]
-    values = winsorize(beta[0, :] + effects, args.winsor_strength)
-    out = pd.DataFrame(values, columns=traits)
-    out.insert(0, "genotype", genotypes)
-    out.insert(0, "environment", args.environment)
-    return out
-
-
-def repeatability_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
-    h2_rows = []
-    part_rows = []
-    numeric = ["log_estimated_leaf_area"] if args.include_leaf_area and data["log_estimated_leaf_area"].notna().any() else []
-    base_groups = ["environment"] if args.environment == "all" else []
-    spatial_groups = ["row", "column"]
-    for trait in traits:
-        y = data[trait].to_numpy(float)
-        x_spatial, _ = design_matrix(data, base_groups + spatial_groups + ["device"], numeric)
-        y_resid = residualize(y, x_spatial)
-        h2_rows.append(
-            {
-                "trait": trait,
-                "environment": args.environment,
-                "broad_sense_h2": broad_sense_h2(y_resid, data["genotype"]),
-                "n_observations": int(len(data)),
-                "n_genotypes": int(data["genotype"].nunique()),
-            }
-        )
-        data_for_trait = data.copy()
-        if args.environment == "all":
-            data_for_trait["genotype_x_environment"] = interaction_column(data_for_trait)
-        groups = {
-            "environment": "environment",
-            "genotype": "genotype",
-            "spatial_row": "row",
-            "spatial_column": "column",
-            "device": "device",
-        }
-        if args.environment == "all":
-            groups["genotype_x_environment"] = "genotype_x_environment"
-        for label, group in groups.items():
-            if group == "environment" and args.environment != "all":
-                continue
-            part_rows.append(
-                {
-                    "trait": trait,
-                    "source": label,
-                    "proportion_variance": group_r2(y, data_for_trait, [], group, []),
-                }
-            )
-        if numeric:
-            part_rows.append(
-                {
-                    "trait": trait,
-                    "source": "estimated_leaf_area",
-                    "proportion_variance": numeric_r2(y, data, "log_estimated_leaf_area") if len(data) else np.nan,
-                }
-            )
-    return pd.DataFrame(h2_rows), pd.DataFrame(part_rows)
+    return pd.DataFrame(rows)
 
 
 def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -431,11 +339,20 @@ def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Name
                 "residual_vcov": np.nan,
                 "phenotypic_v_for_h2": np.nan,
                 "total_vcov": np.nan,
+                "mean_environments_per_genotype_harmonic": np.nan,
+                "mean_plot_reps_per_genotype_environment_harmonic": np.nan,
+                "mean_plot_reps_per_genotype_harmonic": np.nan,
+                "genotype_x_environment_vcov": np.nan,
                 "n_plot_means": int(len(plot_means)),
                 "n_genotypes": int(plot_means["genotype"].nunique()) if "genotype" in plot_means else 0,
                 "model": model_text,
-                "heritability_method": "mixedlm_reml_lme4_like",
+                "heritability_method": "mixedlm_reml_line_mean",
                 "converged": False,
+                "has_warning": False,
+                "boundary_solution": False,
+                "boundary_vcov_sources": np.nan,
+                "genotype_boundary": False,
+                "h2_reliable": False,
                 "status": "error",
                 "warning": np.nan,
                 "error": str(exc),
@@ -448,7 +365,7 @@ def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Name
                     "proportion_variance": np.nan,
                     "broad_sense_h2": np.nan,
                     "model": model_text,
-                    "heritability_method": "mixedlm_reml_lme4_like",
+                    "heritability_method": "mixedlm_reml_line_mean",
                     "status": "error",
                     "error": str(exc),
                 }
@@ -456,12 +373,6 @@ def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Name
         h2_rows.append(summary)
         component_rows.extend(components)
     return pd.DataFrame(h2_rows), pd.DataFrame(component_rows)
-
-
-def summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if args.heritability_method == "mixedlm":
-        return mixedlm_summaries(data, traits, args)
-    return repeatability_summaries(data, traits, args)
 
 
 def parse_args() -> argparse.Namespace:
@@ -476,42 +387,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--winsor-strength", type=float, default=0.01)
     parser.add_argument("--include-leaf-area", action="store_true")
     parser.add_argument(
-        "--heritability-method",
-        choices=["mixedlm", "repeatability"],
-        default="mixedlm",
-        help=(
-            "mixedlm fits lme4-like REML variance components on plot means; "
-            "repeatability uses the older crop-level residual ANOVA shortcut."
-        ),
-    )
-    parser.add_argument(
-        "--h2-residual-divisor",
-        type=float,
-        default=2.0,
-        help="Old lme4-style H2 denominator subtracts residual_vcov divided by this value. Default: 2.",
-    )
-    parser.add_argument(
         "--mixedlm-method",
         default="auto",
         help="statsmodels optimizer for MixedLM; 'auto' uses the statsmodels optimizer sequence.",
     )
     parser.add_argument("--mixedlm-maxiter", type=int, default=200)
-    parser.add_argument(
-        "--mixedlm-include-gxe",
-        action="store_true",
-        help=(
-            "For multi-environment mixed-model H2, add genotype_x_environment as a random "
-            "component. This can be slow with many genotypes."
-        ),
-    )
     parser.add_argument("--verbose-summaries", action="store_true")
-    parser.add_argument(
-        "--blue-method",
-        choices=["modern", "legacy-residual-mean", "legacy-fixed-genotype"],
-        default="modern",
-    )
     parser.add_argument("--spatial-cols", default="row,column")
-    parser.add_argument("--spatial-categorical", action="store_true")
     parser.add_argument(
         "--metadata-optional",
         action="store_true",
@@ -531,16 +413,11 @@ def main() -> None:
     data, traits = load_data(args)
     if data.empty:
         raise SystemExit("No rows remain after joins/filtering")
-    if args.blue_method == "legacy-residual-mean":
-        blues = calculate_legacy_residual_mean_blues(data, traits, args)
-    elif args.blue_method == "legacy-fixed-genotype":
-        blues = calculate_legacy_fixed_genotype_blues(data, traits, args)
-    else:
-        blues = calculate_blue_table(data, traits, args)
+    blues = calculate_blue_table(data, traits, args)
     suffix = args.environment
     blues.to_csv(args.out_dir / f"blues_{suffix}.csv", index=False)
     if not args.skip_summaries:
-        h2, partition = summaries(data, traits, args)
+        h2, partition = mixedlm_summaries(data, traits, args)
         h2.to_csv(args.out_dir / f"heritability_{suffix}.csv", index=False)
         partition.to_csv(args.out_dir / f"variance_partitioning_{suffix}.csv", index=False)
         print(f"Wrote BLUEs, heritability, and variance partitioning to {args.out_dir}")

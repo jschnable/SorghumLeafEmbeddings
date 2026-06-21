@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import time
@@ -27,6 +28,7 @@ def now() -> str:
 
 
 def bh_qvalues(pvalues: np.ndarray) -> np.ndarray:
+    """Benjamini-Hochberg q-values within a single trait."""
     p = np.asarray(pvalues, dtype=float)
     q = np.full(p.shape, np.nan)
     valid = np.isfinite(p)
@@ -145,6 +147,46 @@ def infer_format(path: Path, explicit: str) -> str:
     return "plink"
 
 
+def sample_hash(sample_ids: list[str]) -> str:
+    payload = "\n".join(sample_ids).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def effective_tests_context(
+    args: argparse.Namespace,
+    genotype_format: str,
+    sample_ids: list[str],
+    n_markers: int,
+    covariate_cols: list[str],
+) -> dict[str, object]:
+    return {
+        "genotype": str(args.genotype),
+        "genotype_format": genotype_format,
+        "n_markers": int(n_markers),
+        "n_samples": int(len(sample_ids)),
+        "sample_sha256": sample_hash(sample_ids),
+        "covariate_file": str(args.covariate_file) if args.covariate_file else None,
+        "covariate_cols": covariate_cols if args.covariate_file else [],
+        "drop_missing_samples": bool(args.drop_missing_samples),
+    }
+
+
+def load_or_estimate_effective_tests(
+    path: Path,
+    context: dict[str, object],
+    geno_gwas,
+    geno_map,
+    recompute: bool,
+) -> dict[str, object]:
+    if path.exists() and not recompute:
+        cached = json.loads(path.read_text())
+        if cached.get("context") == context and "effective_tests" in cached:
+            return cached["effective_tests"]
+    effective = estimate_effective_tests_from_genotype(geno_gwas, geno_map, ncpus=1)
+    path.write_text(json.dumps({"context": context, "effective_tests": effective}, indent=2))
+    return effective
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--blue-file", required=True, type=Path)
@@ -215,11 +257,21 @@ def main() -> None:
         covariates_gwas = covariates_all
 
     effective_path = args.out_dir / "effective_tests.json"
-    if effective_path.exists() and not args.recompute_effective_tests:
-        effective = json.loads(effective_path.read_text())
-    else:
-        effective = estimate_effective_tests_from_genotype(geno_gwas, geno_map, ncpus=1)
-        effective_path.write_text(json.dumps(effective, indent=2))
+    retained_sample_ids = [str(x) for x in pheno_all.index]
+    effective_context = effective_tests_context(
+        args,
+        genotype_format,
+        retained_sample_ids,
+        len(markers),
+        covariate_cols,
+    )
+    effective = load_or_estimate_effective_tests(
+        effective_path,
+        effective_context,
+        geno_gwas,
+        geno_map,
+        args.recompute_effective_tests,
+    )
     threshold = 0.05 / int(effective["Me"])
     pcs = PANICLE_PCA(M=geno_gwas, pcs_keep=args.n_pcs, verbose=False)
     if covariates_gwas is not None:
@@ -301,6 +353,7 @@ def main() -> None:
                 ),
                 "lrt_refinement": True,
                 "lrt_solver": args.lrt_solver,
+                "effective_tests_context": effective_context,
             },
             indent=2,
         )

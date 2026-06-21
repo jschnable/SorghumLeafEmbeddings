@@ -17,18 +17,10 @@ from sklearn.model_selection import GroupKFold, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from embedding_io import read_embedding_table
+from embedding_io import image_key, read_embedding_table
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
-def image_key(value: str) -> str:
-    name = Path(str(value)).name
-    name = re.sub(r"_\d+\.(png|npz)$", "", name)
-    name = re.sub(r"_leaf\.(png|npz)$", "", name)
-    name = re.sub(r"\.(jpg|jpeg|png|tif|tiff)$", "", name, flags=re.I)
-    return re.sub(r"-05_00$", "", name)
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,16 +46,21 @@ def parse_args() -> argparse.Namespace:
 def metrics(y: np.ndarray, pred: np.ndarray) -> dict[str, float]:
     y = np.asarray(y, dtype=float)
     pred = np.asarray(pred, dtype=float)
-    pr = pearsonr(y, pred) if len(y) > 1 else (np.nan, np.nan)
-    sr = spearmanr(y, pred) if len(y) > 1 else (np.nan, np.nan)
+    if len(y) > 1 and np.nanstd(y) > 0 and np.nanstd(pred) > 0:
+        pr = pearsonr(y, pred)
+        sr = spearmanr(y, pred)
+        pearson_stat, pearson_p = float(pr.statistic), float(pr.pvalue)
+        spearman_stat, spearman_p = float(sr.statistic), float(sr.pvalue)
+    else:
+        pearson_stat = pearson_p = spearman_stat = spearman_p = np.nan
     return {
         "n": int(len(y)),
-        "pearson_r": float(pr.statistic),
-        "pearson_p": float(pr.pvalue),
-        "pearson_r2": float(pr.statistic**2),
-        "spearman_r": float(sr.statistic),
-        "spearman_p": float(sr.pvalue),
-        "spearman_r2": float(sr.statistic**2),
+        "pearson_r": pearson_stat,
+        "pearson_p": pearson_p,
+        "pearson_r2": float(pearson_stat**2),
+        "spearman_r": spearman_stat,
+        "spearman_p": spearman_p,
+        "spearman_r2": float(spearman_stat**2),
         "rmse": float(np.sqrt(mean_squared_error(y, pred))),
         "mae": float(mean_absolute_error(y, pred)),
     }
@@ -111,6 +108,30 @@ def load_training_table(args: argparse.Namespace) -> tuple[pd.DataFrame, list[st
     return table, feature_cols, target_col
 
 
+def image_level_predictions(pred_df: pd.DataFrame, image_col: str, group_col: str, target_col: str) -> pd.DataFrame:
+    image_df = (
+        pred_df.groupby(["image_key", group_col, "fold"], as_index=False)
+        .agg(
+            image_path=(image_col, "first"),
+            n_crops=("predicted", "size"),
+            observed=(target_col, "mean"),
+            predicted=("predicted", "mean"),
+        )
+    )
+    return image_df
+
+
+def genotype_level_predictions(image_df: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    return (
+        image_df.groupby([group_col, "fold"], as_index=False)
+        .agg(
+            n_images=("predicted", "size"),
+            observed=("observed", "mean"),
+            predicted=("predicted", "mean"),
+        )
+    )
+
+
 def main() -> None:
     args = parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -154,10 +175,13 @@ def main() -> None:
         importances.append(
             pd.DataFrame({"fold": fold, "feature": feature_cols, "feature_importance": rf.feature_importances_})
         )
-        summary = metrics(test[target_col].to_numpy(), pred)
+        fold_pred = fold_pred.copy()
+        fold_image_pred = image_level_predictions(fold_pred, args.image_col, args.group_col, target_col)
+        summary = metrics(fold_image_pred["observed"].to_numpy(), fold_image_pred["predicted"].to_numpy())
         summary.update(
             {
                 "fold": fold,
+                "evaluation_unit": "image",
                 "n_features": len(feature_cols),
                 "n_genotypes_train": int(train[args.group_col].nunique()),
                 "n_genotypes_test": int(test[args.group_col].nunique()),
@@ -170,10 +194,20 @@ def main() -> None:
     pred_df = pd.concat(predictions, ignore_index=True)
     imp_df = pd.concat(importances, ignore_index=True)
     fold_df = pd.DataFrame(fold_summaries)
-    overall = pd.DataFrame([metrics(pred_df[target_col].to_numpy(), pred_df["predicted"].to_numpy())])
+    image_pred_df = image_level_predictions(pred_df, args.image_col, args.group_col, target_col)
+    genotype_pred_df = genotype_level_predictions(image_pred_df, args.group_col)
+    overall = pd.DataFrame([metrics(image_pred_df["observed"].to_numpy(), image_pred_df["predicted"].to_numpy())])
     overall["target"] = args.target
+    overall["evaluation_unit"] = "image"
     overall["n_features"] = len(feature_cols)
-    overall["n_genotypes"] = int(pred_df[args.group_col].nunique())
+    overall["n_genotypes"] = int(image_pred_df[args.group_col].nunique())
+    genotype_overall = pd.DataFrame(
+        [metrics(genotype_pred_df["observed"].to_numpy(), genotype_pred_df["predicted"].to_numpy())]
+    )
+    genotype_overall["target"] = args.target
+    genotype_overall["evaluation_unit"] = "genotype"
+    genotype_overall["n_features"] = len(feature_cols)
+    genotype_overall["n_genotypes"] = int(genotype_pred_df[args.group_col].nunique())
     importance_summary = (
         imp_df.groupby("feature", as_index=False)
         .agg(
@@ -187,8 +221,11 @@ def main() -> None:
     importance_summary["rank"] = np.arange(1, len(importance_summary) + 1)
 
     pred_df.to_csv(args.out_dir / "rf_predictions.csv", index=False)
+    image_pred_df.to_csv(args.out_dir / "rf_image_predictions.csv", index=False)
+    genotype_pred_df.to_csv(args.out_dir / "rf_genotype_predictions.csv", index=False)
     fold_df.to_csv(args.out_dir / "rf_fold_accuracy.csv", index=False)
     overall.to_csv(args.out_dir / "rf_overall_accuracy.csv", index=False)
+    genotype_overall.to_csv(args.out_dir / "rf_genotype_accuracy.csv", index=False)
     imp_df.to_csv(args.out_dir / "rf_feature_importances_by_fold.csv", index=False)
     importance_summary.to_csv(args.out_dir / "rf_feature_importance_summary.csv", index=False)
     print(f"Wrote random forest outputs to {args.out_dir}")

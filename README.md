@@ -39,8 +39,7 @@ pip install panicle
 official `facebookresearch/dinov2` model unless a local `.pth` file is supplied
 in `placeholders/dino2_weights/`. The current cleaned pipeline uses
 `dinov2_vitl14_reg` by default; older legacy DINOv2 scripts used the much
-smaller `dinov2_vits14_reg` model and should not be used to reproduce the
-current analyses.
+smaller `dinov2_vits14_reg` model and is not part of the current pipeline.
 
 ## Provided Input Files
 
@@ -109,7 +108,6 @@ Important parameters:
 - `--image-col`: CSV column containing paths. Default `image_path`.
 - `--backend`: `sam3` or `dino2`.
 - `--sam3-weights`, `--dino2-weights`: model locations.
-- `--dino2-model`: DINOv2 torch.hub architecture. Default `dinov2_vitl14_reg`, the current large/register model used for comparable-scale DINOv2 runs. Avoid the old legacy `dinov2_vits14_reg` setting unless intentionally reproducing early exploratory code.
 - `--npz-dtype`: numeric dtype for `.npz` output. Default `float32`.
 - `--step`, `--crop-width`, `--crop-height`: legacy crop geometry.
 - `--mask-pixels-min`, `--mask-pixels-max`: mask QC bounds.
@@ -134,16 +132,17 @@ python scripts/calculate_pcs_ics.py \
   --out-dir output/dimreduction \
   --n-pcs 64 \
   --n-ics 20 \
-  --ica-whiten-pcs 20
+  --ica-whiten-pcs 20 \
+  --fit-split-column genotype
 ```
 
 Input may be either `.npz` or `.csv`. Outputs include `pc_scores.csv`,
 `ic_scores.csv`, `pca_variance_curve.csv`, and saved sklearn/joblib models.
 
-Optional reproducibility parameters:
-
-- `--fit-split-column genotype`: fit scaler/PCA/ICA on a group-level training split and transform all rows. This reproduces the old production IC leakage-control pattern when the embedding table already includes a `genotype` column.
-- `--fit-test-frac`: held-out group fraction for `--fit-split-column`. Default `0.10`.
+Use `--fit-split-column genotype` for production disease-trait analyses so
+the scaler, PCA, ICA, and ICA sign orientation are learned from genotype-level
+training rows only. The script warns if no fit split is provided.
+`--fit-test-frac` controls the held-out group fraction. Default `0.10`.
 
 ### 3. Random Forest Prediction
 
@@ -167,9 +166,12 @@ python scripts/train_random_forest.py \
 
 Outputs:
 
-- `rf_predictions.csv`
-- `rf_fold_accuracy.csv`
-- `rf_overall_accuracy.csv`
+- `rf_predictions.csv`: crop-level prediction records.
+- `rf_image_predictions.csv`: image-level mean predictions.
+- `rf_genotype_predictions.csv`: genotype-level mean predictions.
+- `rf_fold_accuracy.csv`: fold metrics computed on image-level predictions.
+- `rf_overall_accuracy.csv`: overall image-level metrics.
+- `rf_genotype_accuracy.csv`: overall genotype-level metrics.
 - `rf_feature_importances_by_fold.csv`
 - `rf_feature_importance_summary.csv`
 
@@ -203,42 +205,39 @@ Outputs:
 - `heritability_<environment>.csv`
 - `variance_partitioning_<environment>.csv`
 
-The BLUE step uses fixed-effect least squares with winsorization. Heritability
-defaults to a pure-Python, lme4-like REML variance-component model on plot means
-using `statsmodels.MixedLM`, matching the old R scripts as closely as possible:
+The BLUE step uses fixed-effect least squares with input winsorization and
+reports marginal genotype means averaged over the observed
+environment/row/column/device design. Heritability uses
+`statsmodels.MixedLM` REML variance components fit on plot means.
+
+Within one environment:
 
 ```text
-trait ~ fixed_covariates + (1|row) + (1|column) + (1|genotype)
+trait ~ fixed_covariates + (1|row) + (1|column) + (1|device) + (1|genotype)
+H2 = Vgenotype / (Vgenotype + Vresidual / r)
 ```
 
-For `--environment all`, the default mixed model adds `(1|environment)` and
-uses environment-prefixed row/column terms. `--mixedlm-include-gxe` adds
-`(1|genotype_x_environment)`, but this can be slow with many genotypes.
-
-The reported broad-sense H2 follows the old scripts:
+Across environments:
 
 ```text
-H2 = Vgenotype / (sum(variance components) - Vresidual / 2)
+trait ~ fixed_covariates + (1|environment) + (1|row) + (1|column) + (1|device) + (1|genotype) + (1|genotype_x_environment)
+H2 = Vgenotype / (Vgenotype + Vgenotype_x_environment / e + Vresidual / (e * r))
 ```
 
-Variance partitioning in the mixed-model summary reports REML variance
-component proportions. Use `--heritability-method repeatability` for the older,
-faster crop-level residual ANOVA shortcut.
+Here `r` is the harmonic mean plot-level replication per genotype within an
+environment, and for the across-environment model `e` is the harmonic mean
+number of environments per genotype while `r` is the harmonic mean plot-level
+replication per genotype-environment. Device is included when more than one
+device level is present. Variance partitioning reports REML variance component
+proportions from the fitted mixed model.
 
 `--scores` may point to `.npz` embeddings or a `.csv` score table.
 
 Additional validation/reproduction parameters:
 
-- `--blue-method modern`: default metadata-joined model for the cleaned repository inputs.
-- `--blue-method legacy-fixed-genotype`: legacy `trait ~ spatial + genotype` fit with winsorization.
-- `--blue-method legacy-residual-mean`: legacy IC production method, spatial residuals followed by genotype means.
-- `--heritability-method mixedlm`: default lme4-like REML H2 on plot means.
-- `--heritability-method repeatability`: older faster crop-level residual ANOVA shortcut.
 - `--mixedlm-method`: optimizer for `statsmodels.MixedLM`; default `auto`.
-- `--mixedlm-include-gxe`: include genotype-by-environment as a random component for multi-environment H2.
 - `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `inputdata/field_image_metadata.csv`.
-- `--spatial-cols`: comma-separated spatial columns for legacy methods. Default `row,column`.
-- `--spatial-categorical`: treat legacy spatial columns as categorical fixed effects.
+- `--spatial-cols`: comma-separated spatial columns required when `--metadata-optional` is used. Default `row,column`.
 - `--skip-summaries`: write only BLUEs. Useful for large raw embedding matrices where full heritability and variance partitioning over all 2,048 traits is slow.
 
 ### 5. LOCO MLM LRT GWAS with panicle
