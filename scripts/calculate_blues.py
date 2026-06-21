@@ -244,6 +244,75 @@ def fit_mixedlm_h2(
     return summary, components
 
 
+def build_join_key(scores: pd.DataFrame, preferred_col: str, scores_path: Path) -> pd.Series:
+    """Build the metadata-join key, coalescing across image columns row by row.
+
+    Some embedding tables populate only ``image_path`` (crop filename) while
+    others also carry ``source_image_path``. ``image_key`` collapses the crop
+    index and timestamp, so either column yields the same key; we prefer the
+    requested column but fall back per row whenever it is null/unusable so that
+    no rows (or whole environments) are silently dropped at the metadata join.
+    """
+    candidates = [c for c in dict.fromkeys([preferred_col, "image_path", "source_image_path"]) if c in scores.columns]
+    if not candidates:
+        raise ValueError(
+            f"{scores_path} lacks {preferred_col!r} and fallback 'image_path'/'source_image_path' columns"
+        )
+    key: pd.Series | None = None
+    for col in candidates:
+        col_key = scores[col].map(image_key)
+        col_key = col_key.where(scores[col].notna() & col_key.ne("nan") & col_key.ne(""))
+        key = col_key if key is None else key.fillna(col_key)
+    if key is None or key.isna().all():
+        raise ValueError(f"Could not derive any usable image key from {scores_path} columns {candidates}")
+    return key
+
+
+def warn_unmatched_metadata(scores: pd.DataFrame, merged_environment: pd.Series, scores_path: Path) -> None:
+    """Warn loudly if scored rows failed to match metadata, broken down by source environment."""
+    unmatched = merged_environment.isna().to_numpy()
+    if not unmatched.any():
+        return
+    n_unmatched = int(unmatched.sum())
+    detail = ""
+    src_env_col = next((c for c in ("environment", "env") if c in scores.columns), None)
+    if src_env_col is not None:
+        src_env = scores[src_env_col].astype(str).to_numpy()
+        per_env = pd.Series(src_env[unmatched]).value_counts()
+        totals = pd.Series(src_env).value_counts()
+        dropped_envs = [e for e in per_env.index if per_env[e] == totals.get(e, 0)]
+        detail = " Unmatched by source environment: " + ", ".join(
+            f"{e}={per_env[e]}/{totals.get(e, 0)}" for e in per_env.index
+        )
+        if dropped_envs:
+            detail += f". ENTIRE environment(s) dropped: {dropped_envs}"
+    warnings.warn(
+        f"{n_unmatched}/{len(scores)} scored rows from {scores_path} did not match any row in the "
+        f"metadata file and will be dropped.{detail}",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
+
+def prefer_metadata_columns(data: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
+    """Make the joined ``field_image_metadata.csv`` the authoritative source for design fields.
+
+    When the embedding table and the metadata both carry a column (e.g. ``genotype``),
+    the merge keeps the embedding copy as ``field`` and the metadata copy as ``field_meta``.
+    The cleaned metadata is the canonical, marker-compatible source, so prefer it and fall
+    back to the embedding value only where the metadata is missing. Fields that exist only
+    on the metadata side (e.g. ``column``, ``device``) are already authoritative.
+    """
+    for field in fields:
+        meta_col = f"{field}_meta"
+        if meta_col in data.columns:
+            if field in data.columns:
+                data[field] = data[meta_col].where(data[meta_col].notna(), data[field])
+            else:
+                data[field] = data[meta_col]
+    return data
+
+
 def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     scores = read_embedding_table(args.scores)
     traits = trait_columns(scores, args.trait_regex)
@@ -267,13 +336,13 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
         if "log_estimated_leaf_area" not in data.columns:
             data["log_estimated_leaf_area"] = np.nan
         return data, traits
-    image_col = args.image_col if args.image_col in scores.columns else "image_path"
-    if image_col not in scores.columns:
-        raise ValueError(f"{args.scores} lacks {args.image_col!r} and fallback 'image_path'")
-    scores["image_key"] = scores[image_col].map(image_key)
+    scores = scores.copy()
+    scores["image_key"] = build_join_key(scores, args.image_col, args.scores)
     metadata = pd.read_csv(args.metadata)
     metadata["image_key"] = metadata["image_id"].map(image_key)
     data = scores.merge(metadata, on="image_key", how="left", suffixes=("", "_meta"))
+    warn_unmatched_metadata(scores, data["environment"], args.scores)
+    data = prefer_metadata_columns(data, ["genotype", "row", "column", "device", "plotNumber"])
     if args.exclude:
         excluded = set(x.strip().replace(" ", "") for x in args.exclude.read_text().split() if x.strip())
         data["genotype"] = data["genotype"].astype(str).str.replace(" ", "", regex=False)
