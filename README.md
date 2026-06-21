@@ -108,7 +108,6 @@ Important parameters:
 - `--image-col`: CSV column containing paths. Default `image_path`.
 - `--backend`: `sam3` or `dino2`.
 - `--sam3-weights`, `--dino2-weights`: model locations.
-- `--npz-dtype`: numeric dtype for `.npz` output. Default `float32`.
 - `--step`, `--crop-width`, `--crop-height`: legacy crop geometry.
 - `--mask-pixels-min`, `--mask-pixels-max`: mask QC bounds.
 - OpenCV segmentation options: `--tolerance1`, `--tolerance2`, `--down-from-top`, `--up-from-bottom`, `--trim-left`, `--trim-right`, `--card-height`, `--card-width`.
@@ -120,9 +119,9 @@ For distribution, write embeddings as `.npz`. The NPZ stores:
 - `metadata_json`: JSON metadata table for image path, crop index, backend, mask diagnostics, etc.
 
 CSV output is still supported for debugging by giving an output path ending in
-`.csv`, but it is much larger. Float16 `.npz` output is available with
-`--npz-dtype float16`, but it is not recommended when PCA/ICA will be refit,
-because small quantization changes can alter ICA component identity.
+`.csv`, but it is much larger. NPZ features are always written and read as
+`float32`; float16 is not supported because quantization changed PCA/ICA
+component identity in validation.
 
 ### 2. PCA and ICA
 

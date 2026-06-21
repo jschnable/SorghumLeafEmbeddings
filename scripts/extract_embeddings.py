@@ -151,7 +151,7 @@ def crops_from_mask(
 
 
 class Sam3Extractor:
-    def __init__(self, weights_path: Path, device: str, dtype: str) -> None:
+    def __init__(self, weights_path: Path, device: str) -> None:
         from transformers import Sam3Model, Sam3Processor
 
         if device == "cuda" and not torch.cuda.is_available():
@@ -161,8 +161,6 @@ class Sam3Extractor:
         self.device = device
         self.processor = Sam3Processor.from_pretrained(weights_path)
         self.model = Sam3Model.from_pretrained(weights_path)
-        if dtype == "float16" and self.device == "cuda":
-            self.model = self.model.half()
         self.model = self.model.to(self.device).eval()
 
     def fallback_mask(self, image_bgr: np.ndarray, prompt: str, threshold: float, mask_threshold: float) -> np.ndarray | None:
@@ -311,18 +309,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image_input", help="Image-list CSV, image directory, image file, or glob")
     parser.add_argument("-o", "--output", required=True, type=Path)
-    parser.add_argument(
-        "--npz-dtype",
-        default="float32",
-        choices=["float16", "float32"],
-        help="Numeric dtype used when --output ends in .npz. Default: float32.",
-    )
     parser.add_argument("--image-col", default="image_path")
     parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3")
     parser.add_argument("--sam3-weights", type=Path, default=REPO_ROOT / "placeholders" / "sam3_weights")
     parser.add_argument("--dino2-weights", type=Path, default=REPO_ROOT / "placeholders" / "dino2_weights")
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
-    parser.add_argument("--dtype", default="float32", choices=["float32", "float16"])
     parser.add_argument("--step", type=int, default=500)
     parser.add_argument("--crop-width", type=int, default=1000)
     parser.add_argument("--crop-height", type=int, default=2000)
@@ -354,7 +345,7 @@ def main() -> None:
         args.summary_output.parent.mkdir(parents=True, exist_ok=True)
 
     if args.backend == "sam3":
-        extractor = Sam3Extractor(args.sam3_weights, args.device, args.dtype)
+        extractor = Sam3Extractor(args.sam3_weights, args.device)
     else:
         extractor = Dino2Extractor(DINO2_MODEL, args.dino2_weights, args.device)
 
@@ -380,7 +371,6 @@ def main() -> None:
         df[metadata_cols + embedding_cols],
         args.output,
         feature_cols=embedding_cols,
-        npz_dtype=args.npz_dtype,
     )
 
     if args.summary_output:

@@ -36,7 +36,6 @@ def write_embedding_table(
     df: pd.DataFrame,
     output_path: Path,
     feature_cols: list[str] | None = None,
-    npz_dtype: str = "float32",
 ) -> None:
     """Write a table as CSV or NPZ based on output suffix.
 
@@ -54,7 +53,7 @@ def write_embedding_table(
     if output_path.suffix.lower() != ".npz":
         ordered.to_csv(output_path, index=False)
         return
-    features = ordered[feature_cols].to_numpy(dtype=npz_dtype)
+    features = ordered[feature_cols].to_numpy(dtype=np.float32)
     metadata_json = ordered[metadata_cols].to_json(orient="split", index=False)
     np.savez_compressed(
         output_path,
@@ -66,13 +65,13 @@ def write_embedding_table(
     )
 
 
-def read_embedding_table(path: Path, feature_dtype: str = "float32") -> pd.DataFrame:
+def read_embedding_table(path: Path) -> pd.DataFrame:
     """Read either a CSV table or the NPZ schema emitted by this repository."""
     path = Path(path)
     if path.suffix.lower() != ".npz":
         return pd.read_csv(path)
     with np.load(path, allow_pickle=False) as data:
-        features = data["features"].astype(feature_dtype, copy=False)
+        features = data["features"].astype(np.float32, copy=False)
         feature_cols = [str(x) for x in data["feature_columns"]]
         metadata_json = str(data["metadata_json"].item())
     metadata = pd.read_json(StringIO(metadata_json), orient="split")
