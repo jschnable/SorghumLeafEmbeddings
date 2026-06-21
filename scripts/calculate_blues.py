@@ -676,9 +676,10 @@ def variance_component_summaries(data: pd.DataFrame, traits: list[str], args: ar
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scores", required=True, type=Path, help="Embedding score or IC score CSV/NPZ")
-    parser.add_argument("--metadata", type=Path, default=REPO_ROOT / "inputdata" / "field_image_metadata.csv")
-    parser.add_argument("--exclude", type=Path, default=REPO_ROOT / "inputdata" / "images_to_exclude.txt")
-    parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--metadata", type=Path, default=REPO_ROOT / "data" / "provided" / "field_image_metadata.csv")
+    parser.add_argument("--exclude", type=Path, default=REPO_ROOT / "data" / "provided" / "images_to_exclude.txt")
+    parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "generatable" / "blues",
+                        help="Output directory. Default data/generatable/blues.")
     parser.add_argument("--environment", choices=["all", *ENVIRONMENTS], default="all")
     parser.add_argument("--image-col", default="source_image_path")
     parser.add_argument("--trait-regex", default=r"^(embedding_(mean|std)_\d+|PC\d+|IC\d+)$")

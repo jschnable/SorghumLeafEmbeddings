@@ -383,19 +383,25 @@ def process_image(image_path: Path, extractor, args: argparse.Namespace) -> tupl
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image_input", help="Image-list CSV, image directory, image file, or glob")
-    parser.add_argument("-o", "--output", required=True, type=Path)
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=REPO_ROOT / "data" / "generatable" / "embeddings.npz",
+        help="Output embeddings path (.npz or .csv). Default data/generatable/embeddings.npz.",
+    )
     parser.add_argument("--image-col", default="image_path", help="CSV column containing image paths. Default image_path.")
     parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3", help="Embedding backbone: sam3 or dino2.")
     parser.add_argument(
         "--sam3-weights",
         type=Path,
-        default=REPO_ROOT / "placeholders" / "sam3_weights",
+        default=REPO_ROOT / "data" / "externalsourcerequired" / "sam3_weights",
         help="Hugging Face SAM3 model directory.",
     )
     parser.add_argument(
         "--dino2-weights",
         type=Path,
-        default=REPO_ROOT / "placeholders" / "dino2_weights",
+        default=REPO_ROOT / "data" / "externalsourcerequired" / "dino2_weights",
         help="Optional directory with a local dinov2_vitl14_reg .pth checkpoint; uses torch.hub if empty.",
     )
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"], help="Torch device for embedding extraction.")

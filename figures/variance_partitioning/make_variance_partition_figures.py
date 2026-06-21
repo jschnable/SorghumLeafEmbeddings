@@ -11,11 +11,11 @@ trait with broad-sense H2 overlaid.
 This lives next to the figure outputs it produces. Run it once per environment:
 
     python figures/variance_partitioning/make_variance_partition_figures.py \
-        --partition output/ic_blues_nebraska_mixedlm_from_float32/variance_partitioning_Nebraska2025.csv \
+        --partition data/generatable/blues_nebraska/variance_partitioning_Nebraska2025.csv \
         --out-prefix figures/variance_partitioning/ic_variance_partition_nebraska2025
 
     python figures/variance_partitioning/make_variance_partition_figures.py \
-        --partition output/ic_blues_all_mixedlm_from_float32/variance_partitioning_all.csv \
+        --partition data/generatable/blues_all/variance_partitioning_all.csv \
         --out-prefix figures/variance_partitioning/ic_variance_partition_all_environments
 """
 

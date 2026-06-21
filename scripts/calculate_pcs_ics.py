@@ -18,6 +18,9 @@ from sklearn.preprocessing import StandardScaler
 from embedding_io import read_embedding_table
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def feature_columns(df: pd.DataFrame, pattern: str) -> list[str]:
     if pattern == "embedding":
         cols = [c for c in df.columns if c.startswith("embedding_mean_") or c.startswith("embedding_std_")]
@@ -31,7 +34,8 @@ def feature_columns(df: pd.DataFrame, pattern: str) -> list[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--embeddings", required=True, type=Path, help="Embedding CSV or NPZ from extract_embeddings.py")
-    parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "generatable" / "dimreduction",
+                        help="Output directory. Default data/generatable/dimreduction.")
     parser.add_argument("--feature-pattern", default="embedding")
     parser.add_argument("--n-pcs", type=int, default=64)
     parser.add_argument("--n-ics", type=int, default=20)

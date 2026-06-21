@@ -12,8 +12,8 @@ Outputs a tidy CSV (one row per IC x scope) and prints the FDR-significant ICs,
 which can be passed to the variance-partitioning figure via --corr-csv and --corr-rows.
 
     python scripts/correlate_ics_disease.py \
-        --ic-scores output/dimreduction_all3_from_npz_float32/ic_scores.csv \
-        --out output/ic_disease_correlation/ic_human_score_correlation.csv
+        --ic-scores data/generatable/dimreduction/ic_scores.csv \
+        --out data/generatable/ic_disease_correlation/ic_human_score_correlation.csv
 """
 
 from __future__ import annotations
@@ -84,12 +84,14 @@ def correlate(values: pd.DataFrame, ic_cols: list[str], target_col: str, method:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--ic-scores", required=True, type=Path, help="ic_scores.csv/.npz from calculate_pcs_ics.py")
-    parser.add_argument("--target-file", type=Path, default=REPO_ROOT / "inputdata" / "human_disease_scores.csv")
+    parser.add_argument("--target-file", type=Path, default=REPO_ROOT / "data" / "provided" / "human_disease_scores.csv")
     parser.add_argument("--target-col", default="human_score")
     parser.add_argument("--method", choices=["spearman", "pearson"], default="spearman")
     parser.add_argument("--min-env-n", type=int, default=30, help="Minimum images to report a within-environment correlation.")
     parser.add_argument("--fdr-q", type=float, default=0.05, help="FDR threshold for flagging significant ICs (pooled).")
-    parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--out", type=Path,
+                        default=REPO_ROOT / "data" / "generatable" / "ic_disease_correlation" / "ic_human_score_correlation.csv",
+                        help="Output CSV. Default data/generatable/ic_disease_correlation/ic_human_score_correlation.csv.")
     return parser.parse_args()
 
 

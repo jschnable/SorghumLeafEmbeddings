@@ -8,9 +8,9 @@ implementations where there were multiple versions.
 ## Layout
 
 - `scripts/`: command-line analysis scripts.
-- `inputdata/`: small CSV inputs included with this repository.
-- `inputdata/examples/`: five example images and an example image-list CSV.
-- `placeholders/`: instructions and empty locations for large files that are not included.
+- `data/provided/`: small CSV inputs committed with this repository (metadata, scores, covariates), plus `data/provided/examples/` (five example images and an example image-list CSV).
+- `data/generatable/`: outputs produced by the scripts (embeddings, PC/IC scores, BLUEs, heritability/variance partitioning, random-forest, correlation, GWAS). Not committed; every output-producing script writes here by default. See `data/generatable/README.md` for what each file is and how to regenerate it.
+- `data/externalsourcerequired/`: large assets obtained from external sources (raw images, genotype marker VCF/PLINK, SAM3/DINOv2 weights). Not committed; see `data/externalsourcerequired/README.md`.
 - `figures/`: generated figures for the paper companion repository.
 
 ## Required Python Modules
@@ -47,20 +47,20 @@ pip install "rpy2>=3.5.16,<3.6"     # 3.5.x line for R 4.4; use rpy2>=3.6 only o
 `facebook/sam3` model files loaded through `Sam3Model` and `Sam3Processor`.
 `scripts/extract_embeddings.py --backend dino2` uses `torch.hub` to load the
 official `facebookresearch/dinov2` model unless a local `.pth` file is supplied
-in `placeholders/dino2_weights/`. The current cleaned pipeline uses
+in `data/externalsourcerequired/dino2_weights/`. The current cleaned pipeline uses
 `dinov2_vitl14_reg` by default; older legacy DINOv2 scripts used the much
 smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 
 ## Provided Input Files
 
-- `inputdata/examples/example_image_list.csv`: short example image-list format. Required column: `image_path`.
-- `inputdata/examples/images/`: five copied example leaf images.
-- `inputdata/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
-- `inputdata/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `inputdata/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`.
-- `inputdata/images_to_exclude.txt`: genotype/image exclusion list from the old project.
-- `inputdata/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
-- `inputdata/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
+- `data/provided/examples/example_image_list.csv`: short example image-list format. Required column: `image_path`.
+- `data/provided/examples/images/`: five copied example leaf images.
+- `data/provided/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
+- `data/provided/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
+- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`.
+- `data/provided/images_to_exclude.txt`: genotype/image exclusion list from the old project.
+- `data/provided/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
+- `data/provided/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
 
 The environment names in the cleaned metadata are `Nebraska2025`,
 `Alabama2025`, and `Georgia2025`. Genotype IDs in the distributed metadata are
@@ -77,8 +77,8 @@ These files are intentionally not committed to this GitHub repository:
 
 - Full raw image set for all environments. These images are distributed separately because they are too large for GitHub.
 - Large sorghum marker VCF or PLINK files for GWAS. These marker files are distributed separately because they are too large for GitHub.
-- SAM3 weights. These are not redistributed here; use the official Hugging Face `facebook/sam3` model repository. See `placeholders/sam3_weights/README.txt`.
-- Optional local DINOv2 weights. These are not redistributed here; the intended DINOv2 model is `dinov2_vitl14_reg`, not the older tiny `dinov2_vits14_reg` legacy model. See `placeholders/dino2_weights/README.txt`.
+- SAM3 weights. These are not redistributed here; use the official Hugging Face `facebook/sam3` model repository. See `data/externalsourcerequired/sam3_weights/README.txt`.
+- Optional local DINOv2 weights. These are not redistributed here; the intended DINOv2 model is `dinov2_vitl14_reg`, not the older tiny `dinov2_vits14_reg` legacy model. See `data/externalsourcerequired/dino2_weights/README.txt`.
 
 Full embedding matrices are not distributed. They are generated by users from
 the separately distributed images with `scripts/extract_embeddings.py`; on the
@@ -91,21 +91,21 @@ paper analysis.
 
 ```bash
 python scripts/extract_embeddings.py \
-  inputdata/examples/example_image_list.csv \
+  data/provided/examples/example_image_list.csv \
   --backend sam3 \
-  --sam3-weights placeholders/sam3_weights \
-  --output output/example_sam3_embeddings.npz \
-  --summary-output output/example_sam3_summary.csv
+  --sam3-weights data/externalsourcerequired/sam3_weights \
+  --output data/generatable/example_sam3_embeddings.npz \
+  --summary-output data/generatable/example_sam3_summary.csv
 ```
 
 Use DINOv2 instead:
 
 ```bash
 python scripts/extract_embeddings.py \
-  inputdata/examples/example_image_list.csv \
+  data/provided/examples/example_image_list.csv \
   --backend dino2 \
-  --dino2-weights placeholders/dino2_weights \
-  --output output/example_dino2_embeddings.npz
+  --dino2-weights data/externalsourcerequired/dino2_weights \
+  --output data/generatable/example_dino2_embeddings.npz
 ```
 
 DINOv2 runs use the fixed `dinov2_vitl14_reg` backbone. Crops are resized with
@@ -138,8 +138,8 @@ CSV output is still supported for debugging by giving an output path ending in
 
 ```bash
 python scripts/calculate_pcs_ics.py \
-  --embeddings output/example_sam3_embeddings.npz \
-  --out-dir output/dimreduction \
+  --embeddings data/generatable/example_sam3_embeddings.npz \
+  --out-dir data/generatable/dimreduction \
   --n-pcs 64 \
   --n-ics 20 \
   --ica-whiten-pcs 20 \
@@ -160,18 +160,18 @@ Predict human disease scores:
 
 ```bash
 python scripts/train_random_forest.py \
-  --features output/dimreduction/ic_scores.csv \
+  --features data/generatable/dimreduction/ic_scores.csv \
   --target human_score \
-  --out-dir output/rf_human
+  --out-dir data/generatable/rf_human
 ```
 
 Predict ExG ratings:
 
 ```bash
 python scripts/train_random_forest.py \
-  --features output/dimreduction/ic_scores.csv \
+  --features data/generatable/dimreduction/ic_scores.csv \
   --target exg \
-  --out-dir output/rf_exg
+  --out-dir data/generatable/rf_exg
 ```
 
 Outputs:
@@ -197,18 +197,18 @@ All environments:
 
 ```bash
 python scripts/calculate_blues.py \
-  --scores output/dimreduction/ic_scores.csv \
+  --scores data/generatable/dimreduction/ic_scores.csv \
   --environment all \
-  --out-dir output/blues
+  --out-dir data/generatable/blues
 ```
 
 Single environment:
 
 ```bash
 python scripts/calculate_blues.py \
-  --scores output/dimreduction/ic_scores.csv \
+  --scores data/generatable/dimreduction/ic_scores.csv \
   --environment Nebraska2025 \
-  --out-dir output/blues_nebraska
+  --out-dir data/generatable/blues_nebraska
 ```
 
 Outputs:
@@ -270,7 +270,7 @@ score inputs must carry the fit-split provenance columns written by
 Additional validation/reproduction parameters:
 
 - `--vc-cpu`: cores for the lme4 per-trait loop (R `parallel::mclapply`); default `1`.
-- `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `inputdata/field_image_metadata.csv`.
+- `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `data/provided/field_image_metadata.csv`.
 - `--spatial-cols`: comma-separated spatial columns required when `--metadata-optional` is used. Default `row,column`.
 - `--skip-summaries`: write only BLUEs. Useful for large raw embedding matrices where full heritability and variance partitioning over all 2,048 traits is slow.
 
@@ -278,11 +278,11 @@ Additional validation/reproduction parameters:
 
 ```bash
 python scripts/run_gwas_panicle.py \
-  --blue-file output/blues/blues_Nebraska2025.csv \
-  --genotype placeholders/vcf/sorghum_markers.vcf.gz \
+  --blue-file data/generatable/blues/blues_Nebraska2025.csv \
+  --genotype data/externalsourcerequired/vcf/sorghum_markers.vcf.gz \
   --genotype-format vcf \
-  --out-dir output/gwas \
-  --covariate-file inputdata/gwas_covariates_leaf_area_flowering_time.csv \
+  --out-dir data/generatable/gwas \
+  --covariate-file data/provided/gwas_covariates_leaf_area_flowering_time.csv \
   --covariate-cols log_mask_pixels_blue,days_to_flower_blue \
   --drop-missing-samples
 ```
@@ -312,8 +312,8 @@ effective-test cache validation and package versions for the GWAS stack.
 
 ```bash
 python scripts/correlate_ics_disease.py \
-  --ic-scores output/dimreduction/ic_scores.csv \
-  --out output/ic_disease_correlation/ic_human_score_correlation.csv
+  --ic-scores data/generatable/dimreduction/ic_scores.csv \
+  --out data/generatable/ic_disease_correlation/ic_human_score_correlation.csv
 ```
 
 For each IC, computes the Spearman correlation between the image-level IC value
@@ -321,7 +321,7 @@ For each IC, computes the Spearman correlation between the image-level IC value
 environments and within each environment (the within-environment rows guard
 against environment-confounded pooled correlations). Benjamini-Hochberg FDR is
 applied across ICs in the pooled scope, and the FDR-significant ICs are printed.
-Point `--target-file`/`--target-col` at `inputdata/exg_ratings.csv` /
+Point `--target-file`/`--target-col` at `data/provided/exg_ratings.csv` /
 `ExG_P20_disease_pct` to correlate against the automated ExG disease proxy
 instead.
 

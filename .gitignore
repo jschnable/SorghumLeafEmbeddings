@@ -1,7 +1,8 @@
-output/
-outputs/
-/output/
-/outputs/
+# Generated analysis artifacts live in data/generatable/ and are not committed
+# (except the README documenting what each generatable file is).
+data/generatable/*
+!data/generatable/README.md
+
 *.npz
 __pycache__/
 *.py[cod]

@@ -3,11 +3,11 @@
 ## Repository Rules
 
 - Put runnable workflow scripts in `scripts/`.
-- Put small, committed CSV inputs in `inputdata/`.
-- Put example-only images and example CSVs in `inputdata/examples/`.
-- Put generated analysis outputs outside version control, typically under `output/`.
+- Put small, committed CSV inputs in `data/provided/`.
+- Put example-only images and example CSVs in `data/provided/examples/`.
+- Put generated analysis outputs outside version control, typically under `data/generatable/`.
 - Put paper-ready generated figures in `figures/`.
-- Put large missing external assets only under `placeholders/` during local work, and do not commit the actual large weight/VCF files unless explicitly requested.
+- Put large missing external assets only under `data/externalsourcerequired/` during local work, and do not commit the actual large weight/VCF files unless explicitly requested.
 
 ## Script Conventions
 
@@ -24,7 +24,7 @@
 - Full embedding matrices for distribution should be stored as `.npz` with `float32` features, not large decimal CSVs. Float16 is not supported.
 - BLUE/GWAS phenotype tables must contain `genotype` plus trait columns.
 - Genotype values in distributed metadata should already match marker-file sample ID style; do not defer routine `SC1166`/`SC 1166` cleanup to GWAS time.
-- Exclusion lists belong in `inputdata/` and should remain plain text unless a script requires a CSV.
+- Exclusion lists belong in `data/provided/` and should remain plain text unless a script requires a CSV.
 
 ## Files Not To Add
 
