@@ -279,7 +279,7 @@ Additional validation/reproduction parameters:
 ```bash
 python scripts/run_gwas_panicle.py \
   --blue-file data/generatable/blues/blues_Nebraska2025.csv \
-  --genotype data/externalsourcerequired/vcf/sorghum_markers.vcf.gz \
+  --genotype data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz \
   --genotype-format vcf \
   --out-dir data/generatable/gwas \
   --covariate-file data/provided/gwas_covariates_leaf_area_flowering_time.csv \

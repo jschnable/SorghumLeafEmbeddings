@@ -1,7 +1,7 @@
 Place the separately distributed large sorghum marker VCF here.
 
 Default expected filename for scripts/run_gwas_panicle.py:
-  data/externalsourcerequired/vcf/sorghum_markers.vcf.gz
+  data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz
 
 The GWAS script also accepts a PLINK prefix:
   python scripts/run_gwas_panicle.py --genotype /path/to/plink_prefix --genotype-format plink ...

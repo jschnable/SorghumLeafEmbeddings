@@ -223,7 +223,7 @@ def load_or_estimate_effective_tests(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--blue-file", required=True, type=Path)
-    parser.add_argument("--genotype", type=Path, default=REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_markers.vcf.gz")
+    parser.add_argument("--genotype", type=Path, default=REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_925genotypes_filtered_v3.vcf.gz")
     parser.add_argument("--genotype-format", choices=["auto", "vcf", "plink"], default="auto")
     parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "generatable" / "gwas",
                         help="Output directory. Default data/generatable/gwas.")
