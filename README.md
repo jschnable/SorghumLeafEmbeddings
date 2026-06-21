@@ -60,7 +60,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `inputdata/examples/images/`: five copied example leaf images.
 - `inputdata/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `inputdata/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `inputdata/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `device_source`, `estimated_leaf_area`, and SAM3 leaf-area diagnostics.
+- `inputdata/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, and SAM3 leaf-area diagnostics.
 - `inputdata/images_to_exclude.txt`: genotype/image exclusion list from the old project.
 - `inputdata/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
 - `inputdata/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
@@ -73,9 +73,6 @@ lists, for example `SC1166` rather than `SC 1166`.
 Metadata provenance:
 
 - `estimated_leaf_area` is SAM3/OpenCV mask pixel area (`mask_pixels`) from the per-image SAM3 summary files.
-- Nebraska device IDs come from `fieldLeafImaging_github/data/image_metadata.csv` and agree with the `data/ne2025/deviceN/` path folders.
-- Georgia device IDs come from the FVSU FieldBook database `device_name` field; all available rows use `SM-A166U1`.
-- Alabama exports do not include a `device_name` field in the files available here, so `device` uses the image path parent folder (`block1` or `block2`) and `device_source` records that limitation.
 - Alabama genotype IDs are derived from `2025 Sorghum_Update_073125-XK.xlsx`, sheet `AccessionList`, using plot numbers in `Block1`-`Block4`.
 
 ## Not Included in GitHub
@@ -314,6 +311,38 @@ Duplicate genotype rows in phenotype or covariate files are accepted only when
 their requested values agree exactly; conflicting duplicates cause the run to
 fail. GWAS run metadata records the retained-sample hash used for
 effective-test cache validation and package versions for the GWAS stack.
+
+### 6. IC–disease score correlation
+
+```bash
+python scripts/correlate_ics_disease.py \
+  --ic-scores output/dimreduction/ic_scores.csv \
+  --out output/ic_disease_correlation/ic_human_score_correlation.csv
+```
+
+For each IC, computes the Spearman correlation between the image-level IC value
+(crops averaged per image) and the per-image `human_score`, both pooled across
+environments and within each environment (the within-environment rows guard
+against environment-confounded pooled correlations). Benjamini-Hochberg FDR is
+applied across ICs in the pooled scope, and the FDR-significant ICs are printed.
+Point `--target-file`/`--target-col` at `inputdata/exg_ratings.csv` /
+`ExG_P20_disease_pct` to correlate against the automated ExG disease proxy
+instead.
+
+### Variance-partitioning figures
+
+`figures/variance_partitioning/make_variance_partition_figures.py` turns a
+`variance_partitioning_<env>.csv` into a stacked-bar figure (Genotype, Genotype
+x Environment, Environment, Spatial Factors = row+column+device, Residual) plus
+optional heatmap strips beneath the bars:
+
+- `--h2-rows "NE=heritability_Nebraska2025.csv,AL=...,GA=...,All=heritability_all.csv"`
+  draws a broad-sense `H2` heatmap row per source file.
+- `--corr-csv <correlate_ics_disease output> --corr-rows "NE=Nebraska2025,AL=Alabama2025,GA=Georgia2025"`
+  draws a per-environment disease-correlation (`rho`) heatmap.
+
+Cell values are annotated; row labels (e.g. `NE`/`AL`/`GA`/`All`) sit on the
+left of each strip.
 
 ## Notes
 
