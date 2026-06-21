@@ -26,14 +26,14 @@ cleaned repository, including the Transformers commit needed for SAM3 support.
 If installing manually, the core packages are:
 
 ```bash
-pip install numpy pandas scipy scikit-learn statsmodels joblib tqdm opencv-python pillow matplotlib
+pip install numpy pandas scipy scikit-learn joblib tqdm opencv-python pillow matplotlib
 ```
 
 Deep-learning feature extraction additionally uses `torch`, `torchvision`, and
 the pinned Transformers git commit. GWAS uses `panicle`.
 
-Heritability and variance partitioning (`calculate_blues.py`) fit REML variance
-components with R's `lme4` through `rpy2`. The pinned, tested stack is **R 4.4.1
+BLUEs, heritability, and variance partitioning (`calculate_blues.py`) fit mixed
+models with R's `lme4` through `rpy2`. The pinned, tested stack is **R 4.4.1
 + lme4 2.0-1 + Matrix 1.7-5 + rpy2 3.5.17** (rpy2 3.6+ requires R ≥ 4.5). Install
 R and the R packages, then `rpy2`:
 
@@ -42,9 +42,6 @@ R and the R packages, then `rpy2`:
 Rscript -e 'install.packages(c("Matrix","lme4"), repos="https://cloud.r-project.org")'
 pip install "rpy2>=3.5.16,<3.6"     # 3.5.x line for R 4.4; use rpy2>=3.6 only on R>=4.5
 ```
-
-If R/lme4/rpy2 are unavailable, pass `--vc-engine statsmodels` to fall back to
-the slower in-Python `statsmodels.MixedLM` REML (no R dependency).
 
 `scripts/extract_embeddings.py --backend sam3` expects the Hugging Face
 `facebook/sam3` model files loaded through `Sam3Model` and `Sam3Processor`.
@@ -202,8 +199,7 @@ All environments:
 python scripts/calculate_blues.py \
   --scores output/dimreduction/ic_scores.csv \
   --environment all \
-  --out-dir output/blues \
-  --include-leaf-area
+  --out-dir output/blues
 ```
 
 Single environment:
@@ -217,29 +213,36 @@ python scripts/calculate_blues.py \
 
 Outputs:
 
-- `blues_<environment>.csv`
+- `blues_<environment>.csv` for each single environment. An `--environment all`
+  run writes `blues_Nebraska2025.csv`, `blues_Alabama2025.csv`, and
+  `blues_Georgia2025.csv`; it does not write pooled cross-environment BLUEs.
 - `heritability_<environment>.csv`
 - `variance_partitioning_<environment>.csv`
 
 The BLUE step first aggregates crop rows to plot-level means, then uses
-fixed-effect least squares with input winsorization and reports marginal
-genotype means averaged over the observed environment/row/column/device design.
-Heritability and variance partitioning fit REML variance components on plot
-means with R's `lme4` (default), or `statsmodels.MixedLM` with
-`--vc-engine statsmodels`. The fitted `lme4` version is recorded in the
-`heritability_method` column of the output for reproducibility.
+lme4 mixed models with genotype fixed and row/column/device random. Heritability
+and variance partitioning use the same winsorized plot means and lme4 backend,
+with genotype random. Leaf area is included as a scaled fixed covariate whenever
+`estimated_leaf_area` is available. The fitted `lme4` version is recorded in the
+`heritability_method` column.
 
-Within one environment:
+BLUEs within one environment:
 
 ```text
-trait ~ fixed_covariates + (1|row) + (1|column) + (1|device) + (1|genotype)
+trait ~ genotype + leaf_area + (1|row) + (1|column) + (1|device)
+```
+
+Heritability and variance partitioning within one environment:
+
+```text
+trait ~ leaf_area + (1|row) + (1|column) + (1|device) + (1|genotype)
 H2 = Vgenotype / (Vgenotype + Vresidual / r)
 ```
 
-Across environments (genotype_x_environment only with `--include-gxe`):
+Across-environment heritability and variance partitioning:
 
 ```text
-trait ~ fixed_covariates + (1|environment) + (1|row) + (1|column) + (1|device) + (1|genotype) [ + (1|genotype_x_environment) ]
+trait ~ leaf_area + (1|environment) + (1|row) + (1|column) + (1|device) + (1|genotype) + (1|genotype_x_environment)
 H2 = Vgenotype / (Vgenotype + Vgenotype_x_environment / e + Vresidual / (e * r))
 ```
 
@@ -249,17 +252,12 @@ number of environments per genotype while `r` is the harmonic mean plot-level
 replication per genotype-environment. Device is included when more than one
 device level is present.
 
-The `genotype_x_environment` term is **off by default**. `--include-gxe` is a
-single switch that both adds the GxE component *and* restricts the variance-
-component model to genotypes observed in **two or more environments**. This is
-deliberate: GxE variance is only informed by genotypes that appear across
-environments, and the single-environment genotypes (about 70% of this panel)
+Across-environment heritability and variance partitioning always include the
+`genotype_x_environment` term and restrict that model to genotypes observed in
+two or more environments. This is deliberate: GxE variance is only informed by
+genotypes that appear across environments, and the single-environment genotypes
 otherwise add degenerate, uninformative GxE levels that destabilize the fit.
-With `--include-gxe`, heritability and variance partitioning therefore describe
-this connected multi-environment genotype subset (the retained genotype/row
-counts are printed to stderr at run time); the BLUE table is computed on the
-full genotype set and is unaffected. Without the flag, the across-environment
-model keeps all genotypes and omits GxE.
+The retained genotype/row counts are printed at run time.
 
 Each heritability row carries reliability flags (`converged`, `singular`,
 `boundary_solution`, `genotype_boundary`, `h2_reliable`). Variance partitioning
@@ -271,10 +269,7 @@ score inputs must carry the fit-split provenance columns written by
 
 Additional validation/reproduction parameters:
 
-- `--vc-engine`: variance-component engine, `lme4` (default, via rpy2) or `statsmodels`.
-- `--include-gxe`: add `genotype_x_environment` to the `--environment all` model **and** restrict the variance-component fit to genotypes seen in ≥2 environments (single flag; off by default).
 - `--vc-cpu`: cores for the lme4 per-trait loop (R `parallel::mclapply`); default `1`.
-- `--mixedlm-method`: optimizer for `statsmodels.MixedLM` (only with `--vc-engine statsmodels`); default `auto`.
 - `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `inputdata/field_image_metadata.csv`.
 - `--spatial-cols`: comma-separated spatial columns required when `--metadata-optional` is used. Default `row,column`.
 - `--skip-summaries`: write only BLUEs. Useful for large raw embedding matrices where full heritability and variance partitioning over all 2,048 traits is slow.
@@ -283,7 +278,7 @@ Additional validation/reproduction parameters:
 
 ```bash
 python scripts/run_gwas_panicle.py \
-  --blue-file output/blues/blues_all.csv \
+  --blue-file output/blues/blues_Nebraska2025.csv \
   --genotype placeholders/vcf/sorghum_markers.vcf.gz \
   --genotype-format vcf \
   --out-dir output/gwas \
