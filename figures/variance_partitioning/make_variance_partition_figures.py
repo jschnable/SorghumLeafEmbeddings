@@ -49,24 +49,26 @@ matplotlib.rcParams.update({
 })
 
 
-# Raw variance-component source -> grouped figure category.
+# Raw variance-component source -> grouped figure category. row/column are field
+# position ("Spatial"); device is a separate technical/capture-batch effect.
 SOURCE_GROUP = {
     "genotype": "Genotype",
     "genotype_x_environment": "Genotype x Environment",
     "environment": "Environment",
-    "row": "Spatial Factors",
-    "column": "Spatial Factors",
-    "device": "Spatial Factors",
+    "row": "Spatial",
+    "column": "Spatial",
+    "device": "Device",
     "Residual": "Residual",
 }
 
 # Fixed stacking order (bottom -> top) and colors.
-GROUP_ORDER = ["Genotype", "Genotype x Environment", "Environment", "Spatial Factors", "Residual"]
+GROUP_ORDER = ["Genotype", "Genotype x Environment", "Environment", "Spatial", "Device", "Residual"]
 GROUP_COLOR = {
     "Genotype": "#2f7d3b",
     "Genotype x Environment": "#7bbf6a",
     "Environment": "#2f5f8f",
-    "Spatial Factors": "#c9a227",
+    "Spatial": "#c9a227",
+    "Device": "#8c6d31",
     "Residual": "#b0b0b0",
 }
 
