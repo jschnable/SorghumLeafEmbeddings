@@ -3,6 +3,7 @@ pandas==2.1.4
 scipy==1.11.4
 scikit-learn==1.7.0
 statsmodels==0.14.4
+rpy2==3.5.17  # heritability/variance-partitioning lme4 engine; needs R 4.4 + lme4 2.0-1 + Matrix 1.7-5
 joblib==1.5.1
 tqdm==4.67.1
 opencv-python==4.6.0.66

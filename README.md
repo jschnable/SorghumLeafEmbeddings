@@ -32,6 +32,20 @@ pip install numpy pandas scipy scikit-learn statsmodels joblib tqdm opencv-pytho
 Deep-learning feature extraction additionally uses `torch`, `torchvision`, and
 the pinned Transformers git commit. GWAS uses `panicle`.
 
+Heritability and variance partitioning (`calculate_blues.py`) fit REML variance
+components with R's `lme4` through `rpy2`. The pinned, tested stack is **R 4.4.1
++ lme4 2.0-1 + Matrix 1.7-5 + rpy2 3.5.17** (rpy2 3.6+ requires R ≥ 4.5). Install
+R and the R packages, then `rpy2`:
+
+```bash
+# R packages (into the user library; no sudo needed)
+Rscript -e 'install.packages(c("Matrix","lme4"), repos="https://cloud.r-project.org")'
+pip install "rpy2>=3.5.16,<3.6"     # 3.5.x line for R 4.4; use rpy2>=3.6 only on R>=4.5
+```
+
+If R/lme4/rpy2 are unavailable, pass `--vc-engine statsmodels` to fall back to
+the slower in-Python `statsmodels.MixedLM` REML (no R dependency).
+
 `scripts/extract_embeddings.py --backend sam3` expects the Hugging Face
 `facebook/sam3` model files loaded through `Sam3Model` and `Sam3Processor`.
 `scripts/extract_embeddings.py --backend dino2` uses `torch.hub` to load the
@@ -212,8 +226,10 @@ Outputs:
 The BLUE step first aggregates crop rows to plot-level means, then uses
 fixed-effect least squares with input winsorization and reports marginal
 genotype means averaged over the observed environment/row/column/device design.
-Heritability uses
-`statsmodels.MixedLM` REML variance components fit on plot means.
+Heritability and variance partitioning fit REML variance components on plot
+means with R's `lme4` (default), or `statsmodels.MixedLM` with
+`--vc-engine statsmodels`. The fitted `lme4` version is recorded in the
+`heritability_method` column of the output for reproducibility.
 
 Within one environment:
 
@@ -222,10 +238,10 @@ trait ~ fixed_covariates + (1|row) + (1|column) + (1|device) + (1|genotype)
 H2 = Vgenotype / (Vgenotype + Vresidual / r)
 ```
 
-Across environments:
+Across environments (genotype_x_environment only with `--include-gxe`):
 
 ```text
-trait ~ fixed_covariates + (1|environment) + (1|row) + (1|column) + (1|device) + (1|genotype) + (1|genotype_x_environment)
+trait ~ fixed_covariates + (1|environment) + (1|row) + (1|column) + (1|device) + (1|genotype) [ + (1|genotype_x_environment) ]
 H2 = Vgenotype / (Vgenotype + Vgenotype_x_environment / e + Vresidual / (e * r))
 ```
 
@@ -233,7 +249,12 @@ Here `r` is the harmonic mean plot-level replication per genotype within an
 environment, and for the across-environment model `e` is the harmonic mean
 number of environments per genotype while `r` is the harmonic mean plot-level
 replication per genotype-environment. Device is included when more than one
-device level is present. Variance partitioning reports REML variance component
+device level is present. The `genotype_x_environment` term is **off by default**
+(it is near-unidentifiable with this dataset's thin replication and destabilizes
+the fit); enable it with `--include-gxe`, in which case its variance is set to 0
+in the H2 denominator when absent. Each heritability row carries reliability
+flags (`converged`, `singular`, `boundary_solution`, `genotype_boundary`,
+`h2_reliable`). Variance partitioning reports REML variance component
 proportions from the fitted mixed model.
 
 `--scores` may point to `.npz` embeddings or a `.csv` score table. PC or IC
@@ -242,7 +263,10 @@ score inputs must carry the fit-split provenance columns written by
 
 Additional validation/reproduction parameters:
 
-- `--mixedlm-method`: optimizer for `statsmodels.MixedLM`; default `auto`.
+- `--vc-engine`: variance-component engine, `lme4` (default, via rpy2) or `statsmodels`.
+- `--include-gxe`: add `genotype_x_environment` to the `--environment all` model (off by default).
+- `--vc-cpu`: cores for the lme4 per-trait loop (R `parallel::mclapply`); default `1`.
+- `--mixedlm-method`: optimizer for `statsmodels.MixedLM` (only with `--vc-engine statsmodels`); default `auto`.
 - `--metadata-optional`: use `genotype` and spatial columns already present in `--scores` instead of joining `inputdata/field_image_metadata.csv`.
 - `--spatial-cols`: comma-separated spatial columns required when `--metadata-optional` is used. Default `row,column`.
 - `--skip-summaries`: write only BLUEs. Useful for large raw embedding matrices where full heritability and variance partitioning over all 2,048 traits is slow.

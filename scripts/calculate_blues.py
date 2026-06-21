@@ -91,13 +91,14 @@ def zscore_column(values: pd.Series) -> pd.Series:
 def mixedlm_random_effects(frame: pd.DataFrame, args: argparse.Namespace) -> list[str]:
     device_effect = ["device"] if "device" in frame.columns and frame["device"].astype(str).nunique() > 1 else []
     if args.environment == "all":
-        return ["environment", "row", "column", *device_effect, "genotype", "genotype_x_environment"]
+        gxe = ["genotype_x_environment"] if args.include_gxe else []
+        return ["environment", "row", "column", *device_effect, "genotype", *gxe]
     return ["row", "column", *device_effect, "genotype"]
 
 
 def mixedlm_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, list[str], list[str]]:
     frame = data.copy()
-    if args.environment == "all":
+    if args.environment == "all" and args.include_gxe:
         frame["genotype_x_environment"] = interaction_column(frame)
     fixed_covariates = []
     if args.include_leaf_area and frame["log_estimated_leaf_area"].notna().any():
@@ -179,52 +180,40 @@ def line_mean_h2(
     )
 
 
-def fit_mixedlm_h2(
-    plot_means: pd.DataFrame,
+def model_text(fixed_covariates: list[str], random_effects: list[str]) -> str:
+    fixed_rhs = " + ".join(fixed_covariates) if fixed_covariates else "1"
+    return "trait ~ " + fixed_rhs + " + " + " + ".join(f"(1|{x})" for x in random_effects)
+
+
+def assemble_h2(
     trait: str,
+    model_df: pd.DataFrame,
+    vcov: dict[str, float],
+    residual_vcov: float,
+    converged: bool,
+    singular: bool,
+    warning_text: object,
     random_effects: list[str],
     fixed_covariates: list[str],
     args: argparse.Namespace,
+    method_label: str,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
-    columns = [trait, *random_effects, *fixed_covariates]
-    model_df = plot_means[columns].dropna().rename(columns={trait: "trait_value"}).copy()
-    if model_df.empty or model_df["genotype"].nunique() < 2:
-        raise ValueError("Not enough plot means/genotypes for mixed-model heritability")
-    for col in random_effects:
-        model_df[col] = model_df[col].astype(str)
+    """Build the heritability summary and variance-partition rows from raw variance components.
 
-    fixed_rhs = " + ".join(fixed_covariates) if fixed_covariates else "1"
-    model_formula = f"trait_value ~ {fixed_rhs}"
-    vc_formula = {name: f"0 + C({name})" for name in random_effects}
-    model = sm.MixedLM.from_formula(
-        model_formula,
-        groups=np.ones(len(model_df)),
-        vc_formula=vc_formula,
-        data=model_df,
-    )
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always", ConvergenceWarning)
-        method = None if args.mixedlm_method == "auto" else args.mixedlm_method
-        result = model.fit(reml=True, method=method, maxiter=args.mixedlm_maxiter, disp=False)
-
-    vc_names = list(model.exog_vc.names)
-    vcov = {name: float(value) for name, value in zip(vc_names, result.vcomp)}
-    residual_vcov = float(result.scale)
+    Engine-agnostic: both the lme4 and statsmodels backends return the same
+    ``(vcov, residual_vcov, converged, singular, warning_text)`` and this assembles
+    the identical line-mean H2 and component output for them.
+    """
     genotype_vcov = float(vcov.get("genotype", np.nan))
     total_vcov = float(sum(vcov.values()) + residual_vcov)
     h2, phenotypic_v, h2_context = line_mean_h2(model_df, vcov, residual_vcov, args)
-    warning_text = "; ".join(str(w.message) for w in caught) or np.nan
     boundary_tol = max(total_vcov, 1.0) * 1e-6
     boundary_sources = sorted(name for name, value in vcov.items() if np.isfinite(value) and value <= boundary_tol)
     genotype_boundary = bool(np.isfinite(genotype_vcov) and genotype_vcov <= boundary_tol)
-    has_warning = bool(caught)
-    boundary_warning = isinstance(warning_text, str) and "boundary" in warning_text.lower()
-    model_text = (
-        "trait ~ "
-        + (fixed_rhs if fixed_covariates else "1")
-        + " + "
-        + " + ".join(f"(1|{x})" for x in random_effects)
-    )
+    has_warning = isinstance(warning_text, str) and bool(warning_text)
+    boundary_solution = bool(boundary_sources) or bool(singular)
+    text = model_text(fixed_covariates, random_effects)
+    reliable = bool(converged) and not has_warning and not genotype_boundary and not bool(singular)
 
     summary = {
         "trait": trait,
@@ -237,16 +226,17 @@ def fit_mixedlm_h2(
         **h2_context,
         "n_plot_means": int(len(model_df)),
         "n_genotypes": int(model_df["genotype"].nunique()),
-        "model": model_text,
-        "heritability_method": "mixedlm_reml_line_mean",
-        "converged": bool(result.converged),
+        "model": text,
+        "heritability_method": method_label,
+        "converged": bool(converged),
         "has_warning": has_warning,
-        "boundary_solution": bool(boundary_sources) or boundary_warning,
+        "boundary_solution": boundary_solution,
         "boundary_vcov_sources": ",".join(boundary_sources) if boundary_sources else np.nan,
         "genotype_boundary": genotype_boundary,
-        "h2_reliable": bool(result.converged) and not has_warning and not genotype_boundary,
+        "singular": bool(singular),
+        "h2_reliable": reliable,
         "status": "ok",
-        "warning": warning_text,
+        "warning": warning_text if has_warning else np.nan,
         "error": np.nan,
     }
     components = []
@@ -258,13 +248,193 @@ def fit_mixedlm_h2(
                 "vcov": float(value),
                 "proportion_variance": float(value / total_vcov) if total_vcov > 0 else np.nan,
                 "broad_sense_h2": h2,
-                "model": model_text,
-                "heritability_method": "mixedlm_reml_line_mean",
+                "model": text,
+                "heritability_method": method_label,
                 "status": "ok",
                 "error": np.nan,
             }
         )
     return summary, components
+
+
+def varcomp_error_rows(
+    trait: str,
+    plot_means: pd.DataFrame,
+    random_effects: list[str],
+    fixed_covariates: list[str],
+    args: argparse.Namespace,
+    method_label: str,
+    exc: Exception,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    text = model_text(fixed_covariates, random_effects)
+    summary = {
+        "trait": trait,
+        "environment": args.environment,
+        "broad_sense_h2": np.nan,
+        "genotype_vcov": np.nan,
+        "residual_vcov": np.nan,
+        "phenotypic_v_for_h2": np.nan,
+        "total_vcov": np.nan,
+        "mean_environments_per_genotype_harmonic": np.nan,
+        "mean_plot_reps_per_genotype_environment_harmonic": np.nan,
+        "mean_plot_reps_per_genotype_harmonic": np.nan,
+        "genotype_x_environment_vcov": np.nan,
+        "n_plot_means": int(len(plot_means)),
+        "n_genotypes": int(plot_means["genotype"].nunique()) if "genotype" in plot_means else 0,
+        "model": text,
+        "heritability_method": method_label,
+        "converged": False,
+        "has_warning": False,
+        "boundary_solution": False,
+        "boundary_vcov_sources": np.nan,
+        "genotype_boundary": False,
+        "singular": False,
+        "h2_reliable": False,
+        "status": "error",
+        "warning": np.nan,
+        "error": str(exc),
+    }
+    components = [
+        {
+            "trait": trait,
+            "source": np.nan,
+            "vcov": np.nan,
+            "proportion_variance": np.nan,
+            "broad_sense_h2": np.nan,
+            "model": text,
+            "heritability_method": method_label,
+            "status": "error",
+            "error": str(exc),
+        }
+    ]
+    return summary, components
+
+
+def fit_statsmodels_varcomp(
+    model_df: pd.DataFrame,
+    random_effects: list[str],
+    fixed_covariates: list[str],
+    args: argparse.Namespace,
+) -> tuple[dict[str, float], float, bool, bool, str]:
+    fixed_rhs = " + ".join(fixed_covariates) if fixed_covariates else "1"
+    vc_formula = {name: f"0 + C({name})" for name in random_effects}
+    model = sm.MixedLM.from_formula(
+        f"trait_value ~ {fixed_rhs}",
+        groups=np.ones(len(model_df)),
+        vc_formula=vc_formula,
+        data=model_df,
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", ConvergenceWarning)
+        method = None if args.mixedlm_method == "auto" else args.mixedlm_method
+        result = model.fit(reml=True, method=method, maxiter=args.mixedlm_maxiter, disp=False)
+    vcov = {name: float(value) for name, value in zip(model.exog_vc.names, result.vcomp)}
+    warning_text = "; ".join(str(w.message) for w in caught)
+    singular = "boundary" in warning_text.lower()
+    return vcov, float(result.scale), bool(result.converged), singular, warning_text
+
+
+_LME4_FIT_FUNCTION = r"""
+fit_varcomp <- function(df, traits, random_effects, fixed_covariates, mc_cores) {
+  for (re in random_effects) df[[re]] <- as.factor(as.character(df[[re]]))
+  fixed_rhs <- if (length(fixed_covariates) > 0) paste(sprintf("`%s`", fixed_covariates), collapse=" + ") else "1"
+  re_rhs <- paste(sprintf("(1 | `%s`)", random_effects), collapse=" + ")
+  ctrl <- lme4::lmerControl(optimizer="bobyqa", calc.derivs=FALSE)
+  fit_one <- function(tr) {
+    d <- df[, c(tr, random_effects, fixed_covariates), drop=FALSE]
+    names(d)[1] <- "trait_value"
+    d <- d[stats::complete.cases(d), , drop=FALSE]
+    form <- stats::as.formula(sprintf("trait_value ~ %s + %s", fixed_rhs, re_rhs))
+    msgs <- character(0)
+    fit <- tryCatch(
+      withCallingHandlers(
+        lme4::lmer(form, data=d, REML=TRUE, control=ctrl),
+        warning=function(w){ msgs[[length(msgs)+1L]] <<- conditionMessage(w); invokeRestart("muffleWarning") }
+      ),
+      error=function(e) e
+    )
+    if (inherits(fit, "error")) {
+      return(data.frame(trait=tr, source="__error__", vcov=NA_real_,
+                        converged=FALSE, singular=NA, n_obs=nrow(d),
+                        warning=conditionMessage(fit), stringsAsFactors=FALSE))
+    }
+    vc <- as.data.frame(lme4::VarCorr(fit))
+    vc <- vc[is.na(vc$var2), c("grp", "vcov")]
+    conv <- unlist(fit@optinfo$conv$lme4$messages)
+    allmsg <- paste(unique(c(msgs, conv)), collapse="; ")
+    data.frame(trait=tr, source=vc$grp, vcov=vc$vcov,
+               converged=(length(conv) == 0L),
+               singular=lme4::isSingular(fit, tol=1e-4),
+               n_obs=nrow(d),
+               warning=ifelse(nzchar(allmsg), allmsg, NA_character_),
+               stringsAsFactors=FALSE)
+  }
+  parts <- if (mc_cores > 1L) parallel::mclapply(traits, fit_one, mc.cores=mc_cores) else lapply(traits, fit_one)
+  do.call(rbind, parts)
+}
+"""
+
+
+def _load_lme4():
+    """Import lme4 through rpy2, silencing R console chatter; return (ro module, lme4 version)."""
+    import rpy2.rinterface_lib.callbacks as rcb
+    import rpy2.robjects as ro
+    from rpy2.robjects.packages import importr
+
+    rcb.consolewrite_print = lambda *a, **k: None
+    rcb.consolewrite_warnerror = lambda *a, **k: None
+    importr("lme4")
+    version = str(ro.r('as.character(packageVersion("lme4"))')[0])
+    return ro, version
+
+
+def run_lme4_varcomp(
+    plot_means: pd.DataFrame,
+    traits: list[str],
+    random_effects: list[str],
+    fixed_covariates: list[str],
+    args: argparse.Namespace,
+) -> tuple[dict[str, dict[str, object]], str]:
+    """Fit one REML lmer per trait in R (lme4) and return raw variance components per trait."""
+    ro, lme4_version = _load_lme4()
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+
+    frame = plot_means[[*traits, *random_effects, *fixed_covariates]].copy()
+    for col in random_effects:
+        frame[col] = frame[col].astype(str)
+    ro.r(_LME4_FIT_FUNCTION)
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        r_df = ro.conversion.py2rpy(frame)
+        result = ro.globalenv["fit_varcomp"](
+            r_df,
+            ro.StrVector(list(traits)),
+            ro.StrVector(list(random_effects)),
+            ro.StrVector(list(fixed_covariates)),
+            int(max(1, args.vc_cpu)),
+        )
+        long = ro.conversion.rpy2py(result)
+
+    out: dict[str, dict[str, object]] = {}
+    for trait, group in long.groupby("trait"):
+        sources = group["source"].astype(str)
+        if (sources == "__error__").any():
+            msg = group["warning"].iloc[0]
+            out[str(trait)] = {"error": str(msg) if isinstance(msg, str) and msg else "lme4 fit failed"}
+            continue
+        vcov = {s: float(v) for s, v in zip(sources, group["vcov"]) if s != "Residual"}
+        resid_rows = group.loc[sources == "Residual", "vcov"]
+        residual = float(resid_rows.iloc[0]) if len(resid_rows) else np.nan
+        warn = group["warning"].iloc[0]
+        out[str(trait)] = {
+            "vcov": vcov,
+            "residual": residual,
+            "converged": bool(group["converged"].iloc[0]),
+            "singular": bool(group["singular"].iloc[0]) if pd.notna(group["singular"].iloc[0]) else False,
+            "warning": str(warn) if isinstance(warn, str) and warn else np.nan,
+            "error": None,
+        }
+    return out, lme4_version
 
 
 def build_join_key(scores: pd.DataFrame, preferred_col: str, scores_path: Path) -> pd.Series:
@@ -432,61 +602,53 @@ def blue_provenance(data: pd.DataFrame) -> dict[str, object]:
     return provenance
 
 
-def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
+def variance_component_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     plot_means, random_effects, fixed_covariates = mixedlm_plot_means(data, traits, args)
+    lme4_version: str | None = None
+    lme4_results: dict[str, dict[str, object]] | None = None
+    if args.vc_engine == "lme4":
+        lme4_results, lme4_version = run_lme4_varcomp(plot_means, traits, random_effects, fixed_covariates, args)
+        method_label = f"lme4_{lme4_version}_reml_line_mean"
+    else:
+        method_label = f"statsmodels_{sm.__version__}_reml_line_mean"
+
     h2_rows = []
     component_rows = []
     for i, trait in enumerate(traits, start=1):
         if args.verbose_summaries:
-            print(f"[mixedlm {i}/{len(traits)}] {trait}", flush=True)
+            print(f"[{args.vc_engine} {i}/{len(traits)}] {trait}", flush=True)
         try:
-            summary, components = fit_mixedlm_h2(plot_means, trait, random_effects, fixed_covariates, args)
-        except Exception as exc:
-            model_text = (
-                "trait ~ "
-                + (" + ".join(fixed_covariates) if fixed_covariates else "1")
-                + " + "
-                + " + ".join(f"(1|{x})" for x in random_effects)
+            model_df = (
+                plot_means[[trait, *random_effects, *fixed_covariates]]
+                .dropna()
+                .rename(columns={trait: "trait_value"})
+                .copy()
             )
-            summary = {
-                "trait": trait,
-                "environment": args.environment,
-                "broad_sense_h2": np.nan,
-                "genotype_vcov": np.nan,
-                "residual_vcov": np.nan,
-                "phenotypic_v_for_h2": np.nan,
-                "total_vcov": np.nan,
-                "mean_environments_per_genotype_harmonic": np.nan,
-                "mean_plot_reps_per_genotype_environment_harmonic": np.nan,
-                "mean_plot_reps_per_genotype_harmonic": np.nan,
-                "genotype_x_environment_vcov": np.nan,
-                "n_plot_means": int(len(plot_means)),
-                "n_genotypes": int(plot_means["genotype"].nunique()) if "genotype" in plot_means else 0,
-                "model": model_text,
-                "heritability_method": "mixedlm_reml_line_mean",
-                "converged": False,
-                "has_warning": False,
-                "boundary_solution": False,
-                "boundary_vcov_sources": np.nan,
-                "genotype_boundary": False,
-                "h2_reliable": False,
-                "status": "error",
-                "warning": np.nan,
-                "error": str(exc),
-            }
-            components = [
-                {
-                    "trait": trait,
-                    "source": np.nan,
-                    "vcov": np.nan,
-                    "proportion_variance": np.nan,
-                    "broad_sense_h2": np.nan,
-                    "model": model_text,
-                    "heritability_method": "mixedlm_reml_line_mean",
-                    "status": "error",
-                    "error": str(exc),
-                }
-            ]
+            if model_df.empty or model_df["genotype"].nunique() < 2:
+                raise ValueError("Not enough plot means/genotypes for variance-component model")
+            if args.vc_engine == "lme4":
+                record = (lme4_results or {}).get(trait)
+                if record is None:
+                    raise ValueError("lme4 returned no result for trait")
+                if record.get("error"):
+                    raise ValueError(f"lme4 fit failed: {record['error']}")
+                vcov = record["vcov"]
+                residual_vcov = record["residual"]
+                converged, singular, warning_text = record["converged"], record["singular"], record["warning"]
+            else:
+                for col in random_effects:
+                    model_df[col] = model_df[col].astype(str)
+                vcov, residual_vcov, converged, singular, warning_text = fit_statsmodels_varcomp(
+                    model_df, random_effects, fixed_covariates, args
+                )
+            summary, components = assemble_h2(
+                trait, model_df, vcov, residual_vcov, converged, singular,
+                warning_text, random_effects, fixed_covariates, args, method_label,
+            )
+        except Exception as exc:
+            summary, components = varcomp_error_rows(
+                trait, plot_means, random_effects, fixed_covariates, args, method_label, exc
+            )
         h2_rows.append(summary)
         component_rows.extend(components)
     return pd.DataFrame(h2_rows), pd.DataFrame(component_rows)
@@ -504,9 +666,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--winsor-strength", type=float, default=0.01)
     parser.add_argument("--include-leaf-area", action="store_true")
     parser.add_argument(
+        "--vc-engine",
+        choices=["lme4", "statsmodels"],
+        default="lme4",
+        help="Variance-component engine for heritability/partitioning. 'lme4' (default) fits "
+        "REML via R lme4 through rpy2; 'statsmodels' uses the slower in-Python MixedLM.",
+    )
+    parser.add_argument(
+        "--include-gxe",
+        action="store_true",
+        help="For --environment all, add genotype_x_environment as a random component. Off by "
+        "default: with thin replication it is near-unidentifiable and destabilizes the fit.",
+    )
+    parser.add_argument(
+        "--vc-cpu",
+        type=int,
+        default=1,
+        help="Cores for the lme4 per-trait loop (R parallel::mclapply). Default 1 (serial).",
+    )
+    parser.add_argument(
         "--mixedlm-method",
         default="auto",
-        help="statsmodels optimizer for MixedLM; 'auto' uses the statsmodels optimizer sequence.",
+        help="statsmodels optimizer for MixedLM (--vc-engine statsmodels); 'auto' uses the default sequence.",
     )
     parser.add_argument("--mixedlm-maxiter", type=int, default=200)
     parser.add_argument("--verbose-summaries", action="store_true")
@@ -534,7 +715,7 @@ def main() -> None:
     suffix = args.environment
     blues.to_csv(args.out_dir / f"blues_{suffix}.csv", index=False)
     if not args.skip_summaries:
-        h2, partition = mixedlm_summaries(data, traits, args)
+        h2, partition = variance_component_summaries(data, traits, args)
         h2.to_csv(args.out_dir / f"heritability_{suffix}.csv", index=False)
         partition.to_csv(args.out_dir / f"variance_partitioning_{suffix}.csv", index=False)
         print(f"Wrote BLUEs, heritability, and variance partitioning to {args.out_dir}")
