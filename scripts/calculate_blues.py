@@ -101,9 +101,7 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
         frame["genotype_x_environment"] = interaction_column(frame)
     frame["log_estimated_leaf_area"] = pd.to_numeric(frame["log_estimated_leaf_area"], errors="coerce")
     frame.loc[~np.isfinite(frame["log_estimated_leaf_area"]), "log_estimated_leaf_area"] = np.nan
-    fixed_covariates = []
-    if frame["log_estimated_leaf_area"].notna().any():
-        fixed_covariates = ["log_estimated_leaf_area_scaled"]
+    leaf_present = bool(frame["log_estimated_leaf_area"].notna().any())
 
     plot_col = plot_column(frame)
     group_cols = ["environment", "row", "column", "device", "genotype", plot_col]
@@ -111,7 +109,7 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
         group_cols.append("genotype_x_environment")
     group_cols = list(dict.fromkeys(group_cols))
     value_cols = [*traits]
-    if fixed_covariates:
+    if leaf_present:
         value_cols.append("log_estimated_leaf_area")
     plot_means = (
         frame[group_cols + value_cols]
@@ -120,8 +118,23 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
         .mean(numeric_only=True)
     )
     plot_means[traits] = winsorize(plot_means[traits].to_numpy(float), args.winsor_strength)
-    if fixed_covariates:
+
+    fixed_covariates: list[str] = []
+    if leaf_present and args.environment == "all":
+        # The same genotype's leaf is ~2x larger in some environments, so leaf area is
+        # standardized WITHIN each environment (the between-environment size shift is left
+        # to the (1|environment) term) and given an environment-specific slope (nested),
+        # i.e. environment:leaf_area. This keeps the leaf-area adjustment from soaking up
+        # the environment main effect.
+        grp = plot_means.groupby("environment")["log_estimated_leaf_area"]
+        within = (plot_means["log_estimated_leaf_area"] - grp.transform("mean")) / grp.transform("std")
+        for environment in sorted(plot_means["environment"].astype(str).unique()):
+            col = f"leaf_area_scaled_{environment}"
+            plot_means[col] = np.where(plot_means["environment"].astype(str) == environment, within, 0.0)
+            fixed_covariates.append(col)
+    elif leaf_present:
         plot_means["log_estimated_leaf_area_scaled"] = zscore_column(plot_means["log_estimated_leaf_area"])
+        fixed_covariates = ["log_estimated_leaf_area_scaled"]
     return plot_means, fixed_covariates
 
 
