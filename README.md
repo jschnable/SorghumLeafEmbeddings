@@ -18,20 +18,19 @@ implementations where there were multiple versions.
 Core:
 
 ```bash
+pip install -r requirements.txt
+```
+
+The pinned `requirements.txt` records the package versions used for this
+cleaned repository, including the Transformers commit needed for SAM3 support.
+If installing manually, the core packages are:
+
+```bash
 pip install numpy pandas scipy scikit-learn statsmodels joblib tqdm opencv-python pillow matplotlib
 ```
 
-Deep-learning feature extraction:
-
-```bash
-pip install torch torchvision transformers
-```
-
-GWAS:
-
-```bash
-pip install panicle
-```
+Deep-learning feature extraction additionally uses `torch`, `torchvision`, and
+the pinned Transformers git commit. GWAS uses `panicle`.
 
 `scripts/extract_embeddings.py --backend sam3` expects the Hugging Face
 `facebook/sam3` model files loaded through `Sam3Model` and `Sam3Processor`.
@@ -39,7 +38,7 @@ pip install panicle
 official `facebookresearch/dinov2` model unless a local `.pth` file is supplied
 in `placeholders/dino2_weights/`. The current cleaned pipeline uses
 `dinov2_vitl14_reg` by default; older legacy DINOv2 scripts used the much
-smaller `dinov2_vits14_reg` model and is not part of the current pipeline.
+smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 
 ## Provided Input Files
 
@@ -102,6 +101,10 @@ python scripts/extract_embeddings.py \
   --output output/example_dino2_embeddings.npz
 ```
 
+DINOv2 runs use the fixed `dinov2_vitl14_reg` backbone. Crops are resized with
+aspect ratio preserved and padded to the DINOv2 input size; they are not
+stretched to a square.
+
 Important parameters:
 
 - `image_input`: CSV, directory, file, or glob.
@@ -120,8 +123,7 @@ For distribution, write embeddings as `.npz`. The NPZ stores:
 
 CSV output is still supported for debugging by giving an output path ending in
 `.csv`, but it is much larger. NPZ features are always written and read as
-`float32`; float16 is not supported because quantization changed PCA/ICA
-component identity in validation.
+`float32`.
 
 ### 2. PCA and ICA
 
@@ -165,7 +167,7 @@ python scripts/train_random_forest.py \
 
 Outputs:
 
-- `rf_predictions.csv`: crop-level prediction records.
+- `rf_predictions.csv`: image-level prediction records.
 - `rf_image_predictions.csv`: image-level mean predictions.
 - `rf_genotype_predictions.csv`: genotype-level mean predictions.
 - `rf_fold_accuracy.csv`: fold metrics computed on image-level predictions.
@@ -174,8 +176,11 @@ Outputs:
 - `rf_feature_importances_by_fold.csv`
 - `rf_feature_importance_summary.csv`
 
-`--features` may point to `.npz` embeddings, `.csv` embeddings, PC scores, or
-IC scores.
+`train_random_forest.py` aggregates crop-level features to image-level means
+before fitting, so each scored image contributes one training row. `--features`
+may point to `.npz` embeddings, `.csv` embeddings, PC scores, or IC scores. PC
+or IC inputs must carry the fit-split provenance columns written by
+`calculate_pcs_ics.py`.
 
 ### 4. BLUEs, Heritability, and Variance Partitioning
 
@@ -204,9 +209,10 @@ Outputs:
 - `heritability_<environment>.csv`
 - `variance_partitioning_<environment>.csv`
 
-The BLUE step uses fixed-effect least squares with input winsorization and
-reports marginal genotype means averaged over the observed
-environment/row/column/device design. Heritability uses
+The BLUE step first aggregates crop rows to plot-level means, then uses
+fixed-effect least squares with input winsorization and reports marginal
+genotype means averaged over the observed environment/row/column/device design.
+Heritability uses
 `statsmodels.MixedLM` REML variance components fit on plot means.
 
 Within one environment:
@@ -230,7 +236,9 @@ replication per genotype-environment. Device is included when more than one
 device level is present. Variance partitioning reports REML variance component
 proportions from the fitted mixed model.
 
-`--scores` may point to `.npz` embeddings or a `.csv` score table.
+`--scores` may point to `.npz` embeddings or a `.csv` score table. PC or IC
+score inputs must carry the fit-split provenance columns written by
+`calculate_pcs_ics.py`; these columns are propagated into BLUE files for GWAS.
 
 Additional validation/reproduction parameters:
 
@@ -268,6 +276,10 @@ plus genotype-level leaf-area and flowering-time covariates in `CV`. The
 covariates are aligned by `genotype`, samples with missing phenotype/covariate
 values are dropped when `--drop-missing-samples` is set, and covariates are
 z-scored inside the script before being appended to the PC matrix.
+Duplicate genotype rows in phenotype or covariate files are accepted only when
+their requested values agree exactly; conflicting duplicates cause the run to
+fail. GWAS run metadata records the retained-sample hash used for
+effective-test cache validation and package versions for the GWAS stack.
 
 ## Notes
 

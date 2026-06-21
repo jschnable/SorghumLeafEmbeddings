@@ -12,7 +12,9 @@ from __future__ import annotations
 import argparse
 import csv
 import glob
+import importlib.metadata as importlib_metadata
 import os
+import random
 from pathlib import Path
 
 import cv2
@@ -21,7 +23,6 @@ import pandas as pd
 import torch
 from PIL import Image
 from sklearn.decomposition import PCA
-from torchvision.transforms import v2
 from tqdm import tqdm
 
 import segment_leaf
@@ -31,6 +32,30 @@ from embedding_io import image_key, write_embedding_table
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 DINO2_MODEL = "dinov2_vitl14_reg"
+DINO2_INPUT_SIZE = 1008
+
+
+def set_reproducibility(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    try:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+    except TypeError:
+        torch.use_deterministic_algorithms(True)
+
+
+def package_versions() -> dict[str, str | None]:
+    versions: dict[str, str | None] = {"torch": torch.__version__}
+    for package in ["transformers", "torchvision", "numpy", "opencv-python", "Pillow"]:
+        try:
+            versions[package] = importlib_metadata.version(package)
+        except importlib_metadata.PackageNotFoundError:
+            versions[package] = None
+    return versions
 
 
 def read_image_paths(image_input: Path | str, image_col: str) -> list[Path]:
@@ -162,6 +187,10 @@ class Sam3Extractor:
         self.processor = Sam3Processor.from_pretrained(weights_path)
         self.model = Sam3Model.from_pretrained(weights_path)
         self.model = self.model.to(self.device).eval()
+        self.model_id = str(weights_path)
+
+    def metadata(self) -> dict[str, object]:
+        return {"backend_model": self.model_id, "backend_preprocessing": "sam3_processor"}
 
     def fallback_mask(self, image_bgr: np.ndarray, prompt: str, threshold: float, mask_threshold: float) -> np.ndarray | None:
         image_rgb = Image.fromarray(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB))
@@ -199,28 +228,42 @@ class Dino2Extractor:
             state = state.get("teacher", state.get("model", state))
             self.model.load_state_dict(state, strict=True)
         self.model = self.model.to(self.device).eval()
-        self.transform = v2.Compose(
-            [
-                v2.ToDtype(torch.uint8, scale=True),
-                v2.Resize(size=(1008, 1008)),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-            ]
-        )
+        self.model_id = model_name
+        self.weights_source = "torch_hub_pretrained" if pretrained else str(checkpoint)
+
+    def metadata(self) -> dict[str, object]:
+        return {
+            "backend_model": self.model_id,
+            "backend_weights_source": self.weights_source,
+            "backend_preprocessing": f"aspect_preserving_pad_{DINO2_INPUT_SIZE}",
+        }
 
     def fallback_mask(self, *_args, **_kwargs) -> None:
         return None
 
     def embedding(self, crop_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
-        tensor = torch.from_numpy(rgb).permute(2, 0, 1)
-        x = self.transform(tensor).unsqueeze(0).to(self.device)
+        x = self.preprocess(rgb).unsqueeze(0).to(self.device)
         with torch.inference_mode():
             out = self.model.forward_features(x)
         patch_tokens = out["x_norm_patchtokens"]
         mean = patch_tokens.mean(dim=1).squeeze(0).cpu().numpy()
         std = patch_tokens.std(dim=1).squeeze(0).cpu().numpy()
         return np.ravel(mean), np.ravel(std)
+
+    def preprocess(self, rgb: np.ndarray) -> torch.Tensor:
+        height, width = rgb.shape[:2]
+        scale = DINO2_INPUT_SIZE / max(height, width)
+        new_width = max(1, int(round(width * scale)))
+        new_height = max(1, int(round(height * scale)))
+        interpolation = cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR
+        resized = cv2.resize(rgb, (new_width, new_height), interpolation=interpolation)
+        canvas = np.full((DINO2_INPUT_SIZE, DINO2_INPUT_SIZE, 3), 127, dtype=np.uint8)
+        top = (DINO2_INPUT_SIZE - new_height) // 2
+        left = (DINO2_INPUT_SIZE - new_width) // 2
+        canvas[top : top + new_height, left : left + new_width] = resized
+        tensor = torch.from_numpy(canvas).permute(2, 0, 1).to(torch.float32) / 255.0
+        return (tensor - 0.5) / 0.5
 
 
 def pool_features(features: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
@@ -253,11 +296,21 @@ def pool_features(features: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
 
 def process_image(image_path: Path, extractor, args: argparse.Namespace) -> tuple[list[dict[str, object]], dict[str, object]]:
     image_bgr = cv2.imread(str(image_path))
+    model_metadata = extractor.metadata()
+    version_metadata = package_versions()
     if image_bgr is None:
-        return [], {"image_path": str(image_path), "status": "failed_read", "n_crops": 0}
+        return [], {
+            "image_path": str(image_path),
+            "status": "failed_read",
+            "failure_reason": "failed_read",
+            "n_crops": 0,
+            **model_metadata,
+            **{f"version_{k}": v for k, v in version_metadata.items()},
+        }
 
-    mask = segment_leaf.process_single(
-        image_path,
+    cv2_result = segment_leaf.process_array(
+        image_bgr,
+        image_label=str(image_path),
         tolerance1=args.tolerance1,
         tolerance2=args.tolerance2,
         down_from_top=args.down_from_top,
@@ -267,17 +320,32 @@ def process_image(image_path: Path, extractor, args: argparse.Namespace) -> tupl
         trim_left=args.trim_left,
         trim_right=args.trim_right,
     )
+    mask = cv2_result.mask
+    cv2_mask_pixels = int(np.sum(mask > 0)) if mask is not None else 0
     segmentation_method = "CV2"
     if not valid_mask(mask, args.mask_pixels_min, args.mask_pixels_max) and not args.no_sam3_fallback:
         mask = extractor.fallback_mask(image_bgr, args.prompt, args.threshold, args.mask_threshold)
         segmentation_method = "SAM3" if mask is not None else "None"
     if not valid_mask(mask, args.mask_pixels_min, args.mask_pixels_max):
+        final_pixels = int(np.sum(mask > 0)) if mask is not None else 0
+        if cv2_result.status != "ok":
+            reason = cv2_result.reason
+        elif final_pixels == 0:
+            reason = "no_fallback_mask"
+        else:
+            reason = f"mask_pixels_out_of_bounds_{final_pixels}"
         return [], {
             "image_path": str(image_path),
             "status": "failed_segmentation",
             "segmentation_method": segmentation_method,
-            "mask_pixels": int(np.sum(mask > 0)) if mask is not None else 0,
+            "failure_reason": reason,
+            "cv2_segmentation_status": cv2_result.status,
+            "cv2_failure_reason": cv2_result.reason,
+            "cv2_mask_pixels": cv2_mask_pixels,
+            "mask_pixels": final_pixels,
             "n_crops": 0,
+            **model_metadata,
+            **{f"version_{k}": v for k, v in version_metadata.items()},
         }
 
     crops = crops_from_mask(image_bgr, mask, args.step, args.crop_width, args.crop_height)
@@ -290,6 +358,7 @@ def process_image(image_path: Path, extractor, args: argparse.Namespace) -> tupl
             "image_id": image_key(image_path),
             "crop_index": crop_index,
             "backend": args.backend,
+            **model_metadata,
             "segmentation_method": segmentation_method,
             "mask_pixels": int(np.sum(mask > 0)),
         }
@@ -299,9 +368,15 @@ def process_image(image_path: Path, extractor, args: argparse.Namespace) -> tupl
     return rows, {
         "image_path": str(image_path),
         "status": "ok" if rows else "failed_cropping",
+        "failure_reason": "ok" if rows else "no_in_bounds_crops",
         "segmentation_method": segmentation_method,
+        "cv2_segmentation_status": cv2_result.status,
+        "cv2_failure_reason": cv2_result.reason,
+        "cv2_mask_pixels": cv2_mask_pixels,
         "mask_pixels": int(np.sum(mask > 0)),
         "n_crops": len(rows),
+        **model_metadata,
+        **{f"version_{k}": v for k, v in version_metadata.items()},
     }
 
 
@@ -314,6 +389,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sam3-weights", type=Path, default=REPO_ROOT / "placeholders" / "sam3_weights")
     parser.add_argument("--dino2-weights", type=Path, default=REPO_ROOT / "placeholders" / "dino2_weights")
     parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--step", type=int, default=500)
     parser.add_argument("--crop-width", type=int, default=1000)
     parser.add_argument("--crop-height", type=int, default=2000)
@@ -337,6 +413,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    set_reproducibility(args.seed)
     image_paths = read_image_paths(args.image_input, args.image_col)
     if not image_paths:
         raise SystemExit(f"No images found from {args.image_input}")

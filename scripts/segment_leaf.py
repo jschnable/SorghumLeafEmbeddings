@@ -1,7 +1,15 @@
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 import cv2
 import numpy as np
+
+
+@dataclass
+class SegmentResult:
+    mask: np.ndarray | None
+    status: str
+    reason: str
 
 
 def clamp_seed(x: int, y: int, width: int, height: int) -> tuple[int, int]:
@@ -57,15 +65,21 @@ def largest_component_touching_sides(binary_mask: np.ndarray) -> tuple[int | Non
 
     return best_label, (labels == best_label)
   
-def process_single(image_path, tolerance1=50, tolerance2=50, down_from_top=750, up_from_bottom=20, card_height=1310, card_width=750, trim_left=300, trim_right=100):
-    """Process a single image and return a binary mask."""
-    image = cv2.imread(str(image_path))
-    if image is None:
-        print(f"Could not read image at {image_path}")
-        return None
+def process_array(
+    image: np.ndarray,
+    image_label: str = "<array>",
+    tolerance1=50,
+    tolerance2=50,
+    down_from_top=750,
+    up_from_bottom=20,
+    card_height=1310,
+    card_width=750,
+    trim_left=300,
+    trim_right=100,
+) -> SegmentResult:
+    """Process an already-loaded BGR image and return a mask plus failure reason."""
     if image.ndim != 3 or image.shape[2] != 3:
-        print(f"Expected a 3-channel BGR image at {image_path}; got shape {image.shape}")
-        return None
+        return SegmentResult(None, "failed", f"expected_3_channel_bgr_shape_{image.shape}")
 
     height, width = image.shape[:2]
     seed1 = (width // 2, down_from_top)
@@ -77,13 +91,11 @@ def process_single(image_path, tolerance1=50, tolerance2=50, down_from_top=750, 
     foreground_mask = np.any(working != 0, axis=2).astype(np.uint8)
     _, leaf_mask = largest_component_touching_sides(foreground_mask)
     if leaf_mask is None:
-        print(f"No component touches both borders after removal for {image_path}")
-        return None
+        return SegmentResult(None, "failed", "no_component_touching_both_sides")
 
     # Trim noisy edges near the borders.
     if trim_left + trim_right >= width:
-        print(f"Image {image_path} is too narrow for trim_left={trim_left} + trim_right={trim_right}")
-        return None
+        return SegmentResult(None, "failed", "trim_width_exceeds_image_width")
 
     leaf_mask[:, :trim_left] = False
     leaf_mask[:, width - trim_right :] = False
@@ -98,17 +110,27 @@ def process_single(image_path, tolerance1=50, tolerance2=50, down_from_top=750, 
             best_area = area
             best_label = label
     if best_label is None:
-        print(f"No component remains after trimming for {image_path}")
-        return None
+        return SegmentResult(None, "failed", "no_component_after_trimming")
     leaf_mask = labels == best_label
 
     # Create binary mask: white (255) for leaf pixels, black (0) for background
     binary_mask = (leaf_mask).astype(np.uint8)
     if np.sum(binary_mask[0:card_height, width - card_width :]) > 0:
-        return None
-    # cv2.imwrite(str(out_path), binary_mask)
-    # print(f"Wrote {out_path}")
-    return binary_mask
+        return SegmentResult(None, "failed", "mask_overlaps_color_card_region")
+    return SegmentResult(binary_mask, "ok", "ok")
+
+
+def process_single_result(image_path, **kwargs) -> SegmentResult:
+    """Process a single image path and return a mask plus status fields."""
+    image = cv2.imread(str(image_path))
+    if image is None:
+        return SegmentResult(None, "failed", "failed_read")
+    return process_array(image, image_label=str(image_path), **kwargs)
+
+
+def process_single(image_path, **kwargs):
+    """Process a single image and return only the binary mask for compatibility."""
+    return process_single_result(image_path, **kwargs).mask
 
 
 def main() -> None:
@@ -120,8 +142,7 @@ def main() -> None:
     parser.add_argument("--up-from-bottom", type=int, default=20, help="Pixels up from the bottom for the second seed (x is centered).")
     parser.add_argument("--output-prefix", type=str, default="leaf_segmentation", help="Prefix for output files when a single image is provided.")
     parser.add_argument("--output-dir", type=Path, default=Path("demo2_leaves"), help="Directory to write outputs when processing a folder.")
-    parser.add_argument("--trim-left", type=int, default=300
-, help="Pixels to trim from left border (default: 300 for device 7).")
+    parser.add_argument("--trim-left", type=int, default=300, help="Pixels to trim from left border.")
     parser.add_argument("--trim-right", type=int, default=100, help="Pixels to trim from right border (default: 100 for device 7).")
     parser.add_argument("--card-height", type=int, default=1310, help='Pixel height of color reference card in upper right corner')
     parser.add_argument('--card-width', type=int, default=750, help='Pixel height of color reference card in upper right corner')
@@ -137,7 +158,7 @@ def main() -> None:
             if img_path.suffix.lower() not in extensions:
                 continue
             out_file = out_dir / f"{img_path.stem}_leaf.png"
-            binary_mask = process_single(
+            result = process_single_result(
                 img_path,
                 tolerance1=args.tolerance1,
                 tolerance2=args.tolerance2,
@@ -148,15 +169,18 @@ def main() -> None:
                 trim_left=args.trim_left,
                 trim_right=args.trim_right,
             )
+            binary_mask = result.mask
             if binary_mask is not None:
                 cv2.imwrite(str(out_file), binary_mask)
                 print(f"Wrote {out_file}")
                 success = True
+            else:
+                print(f"Skipped {img_path}: {result.reason}")
         if not success:
             raise SystemExit("No images were processed successfully.")
     else:
         out_file = Path(args.output_prefix).with_suffix(".leaf.png")
-        binary_mask = process_single(
+        result = process_single_result(
             input_path,
             tolerance1=args.tolerance1,
             tolerance2=args.tolerance2,
@@ -167,10 +191,12 @@ def main() -> None:
             trim_left=args.trim_left,
             trim_right=args.trim_right,
         )
+        binary_mask = result.mask
         if binary_mask is not None:
             cv2.imwrite(str(out_file), binary_mask)
             print(f"Wrote {out_file}")
         else:
+            print(f"Segmentation failed for {input_path}: {result.reason}")
             raise SystemExit(1)
 
 

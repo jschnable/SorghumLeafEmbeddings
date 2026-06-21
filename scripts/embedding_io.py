@@ -10,6 +10,15 @@ import numpy as np
 import pandas as pd
 
 
+PROVENANCE_COLUMNS = [
+    "fit_split_column",
+    "fit_test_frac",
+    "fit_split_role",
+    "n_fit_rows",
+    "ica_sign_source",
+]
+
+
 def image_key(value: Path | str) -> str:
     """Return the canonical source-image key used for metadata joins."""
     name = Path(str(value)).name
@@ -17,6 +26,25 @@ def image_key(value: Path | str) -> str:
     name = re.sub(r"_leaf\.(png|npz)$", "", name, flags=re.I)
     name = re.sub(r"\.(jpg|jpeg|png|tif|tiff)$", "", name, flags=re.I)
     return re.sub(r"-05_00$", "", name)
+
+
+def requires_fit_split_provenance(feature_cols: list[str]) -> bool:
+    """Return True for PCA/ICA score tables that must carry fit-split metadata."""
+    return any(c.startswith("PC") or c.startswith("IC") for c in feature_cols)
+
+
+def assert_fit_split_provenance(df: pd.DataFrame, source: Path | str, feature_cols: list[str]) -> None:
+    """Fail when PC/IC features lack group-aware PCA/ICA provenance columns."""
+    if not requires_fit_split_provenance(feature_cols):
+        return
+    missing = [c for c in PROVENANCE_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{source} contains PC/IC features but lacks PCA/ICA fit-split provenance columns: {missing}"
+        )
+    split_values = df["fit_split_column"].dropna().astype(str).unique()
+    if len(split_values) != 1 or split_values[0] == "":
+        raise ValueError(f"{source} PC/IC features must have one non-empty fit_split_column value")
 
 
 def split_feature_metadata_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:

@@ -81,12 +81,21 @@ def main() -> None:
         )
     else:
         fit_mask = np.ones(len(df), dtype=bool)
+        test_groups = []
         warnings.warn(
             "Fitting scaler/PCA/ICA on all rows because --fit-split-column was not provided. "
             "Use --fit-split-column genotype for production disease-trait analyses.",
             RuntimeWarning,
             stacklevel=2,
         )
+    fit_role = np.where(fit_mask, "fit", "heldout")
+    provenance = {
+        "fit_split_column": args.fit_split_column,
+        "fit_test_frac": float(args.fit_test_frac),
+        "fit_split_role": fit_role,
+        "n_fit_rows": int(fit_mask.sum()),
+        "ica_sign_source": "fit_rows_only",
+    }
 
     scaler = StandardScaler().fit(x[fit_mask])
     xs = scaler.transform(x).astype(np.float32)
@@ -109,6 +118,8 @@ def main() -> None:
         ],
         axis=1,
     )
+    for col, value in provenance.items():
+        pc_df[col] = value
     pc_df.to_csv(args.out_dir / "pc_scores.csv", index=False)
 
     k_white = min(args.ica_whiten_pcs, n_pcs)
@@ -136,6 +147,8 @@ def main() -> None:
         ],
         axis=1,
     )
+    for col, value in provenance.items():
+        ic_df[col] = value
     ic_df.to_csv(args.out_dir / "ic_scores.csv", index=False)
 
     joblib.dump(scaler, args.out_dir / "models" / "scaler.joblib")

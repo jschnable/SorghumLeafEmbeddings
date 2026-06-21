@@ -13,7 +13,12 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
-from embedding_io import image_key, read_embedding_table
+from embedding_io import (
+    PROVENANCE_COLUMNS,
+    assert_fit_split_provenance,
+    image_key,
+    read_embedding_table,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +118,24 @@ def mixedlm_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Nam
     if fixed_covariates:
         plot_means["log_estimated_leaf_area_scaled"] = zscore_column(plot_means["log_estimated_leaf_area"])
     return plot_means, random_effects, fixed_covariates
+
+
+def plot_level_means(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> pd.DataFrame:
+    """Collapse crop rows to plot-level means before genotype modeling."""
+    plot_col = plot_column(data)
+    group_cols = ["environment", "row", "column", "device", "genotype", plot_col]
+    value_cols = [*traits]
+    if "log_estimated_leaf_area" in data.columns:
+        value_cols.append("log_estimated_leaf_area")
+    plot_means = (
+        data[group_cols + value_cols]
+        .dropna(subset=[*group_cols, *traits])
+        .groupby(group_cols, as_index=False)
+        .mean(numeric_only=True)
+    )
+    if "log_estimated_leaf_area" not in plot_means.columns:
+        plot_means["log_estimated_leaf_area"] = np.nan
+    return plot_means
 
 
 def line_mean_h2(
@@ -316,6 +339,7 @@ def prefer_metadata_columns(data: pd.DataFrame, fields: list[str]) -> pd.DataFra
 def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     scores = read_embedding_table(args.scores)
     traits = trait_columns(scores, args.trait_regex)
+    assert_fit_split_provenance(scores, args.scores, traits)
     spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
     if args.metadata_optional and {"genotype", *spatial_cols}.issubset(scores.columns):
         data = scores.copy()
@@ -332,7 +356,7 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
         if "column" not in data.columns:
             data["column"] = data[spatial_cols[-1]]
         if "device" not in data.columns:
-            data["device"] = "unknown"
+            raise ValueError("--metadata-optional requires a device column")
         if "log_estimated_leaf_area" not in data.columns:
             data["log_estimated_leaf_area"] = np.nan
         return data, traits
@@ -362,12 +386,17 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
 
 
 def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> pd.DataFrame:
-    y = winsorize(data[traits].to_numpy(float), args.winsor_strength)
-    numeric = ["log_estimated_leaf_area"] if args.include_leaf_area and data["log_estimated_leaf_area"].notna().any() else []
+    plot_data = plot_level_means(data, traits, args)
+    y = winsorize(plot_data[traits].to_numpy(float), args.winsor_strength)
+    numeric = (
+        ["log_estimated_leaf_area"]
+        if args.include_leaf_area and plot_data["log_estimated_leaf_area"].notna().any()
+        else []
+    )
     fixed_groups = ["row", "column", "device"]
     if args.environment == "all":
         fixed_groups = ["environment", *fixed_groups]
-    x, names = design_matrix(data, fixed_groups + ["genotype"], numeric)
+    x, names = design_matrix(plot_data, fixed_groups + ["genotype"], numeric)
     beta, *_ = np.linalg.lstsq(x, y, rcond=None)
 
     genotype_columns = {name: i for i, name in enumerate(names) if name.startswith("genotype_")}
@@ -375,8 +404,9 @@ def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.N
     for idx in genotype_columns.values():
         x_baseline[:, idx] = 0.0
     marginal_baseline = (x_baseline @ beta).mean(axis=0)
-    genotypes = sorted(data["genotype"].astype(str).unique())
+    genotypes = sorted(plot_data["genotype"].astype(str).unique())
     rows = []
+    provenance = blue_provenance(data)
     for genotype in genotypes:
         row = {"environment": args.environment, "genotype": genotype}
         pred = marginal_baseline.copy()
@@ -384,8 +414,22 @@ def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.N
         if idx is not None:
             pred += beta[idx, :]
         row.update({trait: float(value) for trait, value in zip(traits, pred)})
+        row.update(provenance)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def blue_provenance(data: pd.DataFrame) -> dict[str, object]:
+    provenance: dict[str, object] = {}
+    for col in PROVENANCE_COLUMNS:
+        if col not in data.columns:
+            continue
+        if col == "fit_split_role":
+            provenance[col] = "genotype_blue"
+            continue
+        values = data[col].dropna().unique()
+        provenance[col] = values[0] if len(values) == 1 else "mixed"
+    return provenance
 
 
 def mixedlm_summaries(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:

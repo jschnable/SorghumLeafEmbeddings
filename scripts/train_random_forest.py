@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,7 @@ from sklearn.model_selection import GroupKFold, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from embedding_io import image_key, read_embedding_table
+from embedding_io import assert_fit_split_provenance, image_key, read_embedding_table
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,28 @@ def param_grid() -> dict[str, list[object]]:
     }
 
 
+def collapse_unique(df: pd.DataFrame, key_col: str, value_col: str, source: Path) -> pd.DataFrame:
+    """Collapse duplicate keys only when their non-null values agree."""
+    values = df[[key_col, value_col]].dropna().drop_duplicates()
+    conflicts = values.groupby(key_col)[value_col].nunique()
+    conflicts = conflicts.loc[conflicts > 1]
+    if not conflicts.empty:
+        examples = conflicts.index.astype(str).tolist()[:5]
+        raise ValueError(f"{source} has conflicting {value_col} values for {len(conflicts)} image keys: {examples}")
+    return values.drop_duplicates(key_col)
+
+
+def warn_join_loss(table: pd.DataFrame, column: str, source: Path, label: str) -> None:
+    missing = table[column].isna()
+    if not missing.any():
+        return
+    warnings.warn(
+        f"{int(missing.sum())}/{len(table)} image-level rows from {source} did not match {label} and will be dropped",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
+
 def load_training_table(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str], str]:
     features = read_embedding_table(args.features)
     if args.smoke_rows:
@@ -87,10 +110,21 @@ def load_training_table(args: argparse.Namespace) -> tuple[pd.DataFrame, list[st
     feature_cols = [c for c in features.columns if re.match(args.feature_regex, c)]
     if not feature_cols:
         raise ValueError(f"No feature columns match {args.feature_regex}")
+    assert_fit_split_provenance(features, args.features, feature_cols)
+    image_features = (
+        features.groupby("image_key", as_index=False)
+        .agg(
+            image_path=(args.image_col, "first"),
+            n_crops=(args.image_col, "size"),
+            **{c: (c, "mean") for c in feature_cols},
+        )
+    )
 
-    metadata = pd.read_csv(args.metadata, usecols=["image_id", args.group_col]).drop_duplicates("image_id")
+    metadata = pd.read_csv(args.metadata, usecols=["image_id", args.group_col])
     metadata["image_key"] = metadata["image_id"].map(image_key)
-    table = features.merge(metadata[["image_key", args.group_col]], on="image_key", how="left")
+    metadata = collapse_unique(metadata, "image_key", args.group_col, args.metadata)
+    table = image_features.merge(metadata[["image_key", args.group_col]], on="image_key", how="left")
+    warn_join_loss(table, args.group_col, args.features, "metadata genotype")
 
     if args.target == "human_score":
         target = pd.read_csv(args.human_scores, usecols=["image_id", "human_score"])
@@ -100,8 +134,9 @@ def load_training_table(args: argparse.Namespace) -> tuple[pd.DataFrame, list[st
         target = pd.read_csv(args.exg_ratings, usecols=["image_id", "ExG_P20_disease_pct"])
         target_col = "ExG_P20_disease_pct"
         target["image_key"] = target["image_id"].map(image_key)
-    target = target[["image_key", target_col]].dropna().drop_duplicates("image_key")
+    target = collapse_unique(target, "image_key", target_col, args.human_scores if args.target == "human_score" else args.exg_ratings)
     table = table.merge(target, on="image_key", how="left")
+    warn_join_loss(table, target_col, args.features, args.target)
     table = table.dropna(subset=[target_col, args.group_col, *feature_cols]).copy()
     if table[args.group_col].nunique() < args.folds:
         raise ValueError(f"Need at least {args.folds} genotype groups; found {table[args.group_col].nunique()}")
@@ -113,7 +148,7 @@ def image_level_predictions(pred_df: pd.DataFrame, image_col: str, group_col: st
         pred_df.groupby(["image_key", group_col, "fold"], as_index=False)
         .agg(
             image_path=(image_col, "first"),
-            n_crops=("predicted", "size"),
+            n_crops=("n_crops", "first"),
             observed=(target_col, "mean"),
             predicted=("predicted", "mean"),
         )
@@ -166,7 +201,7 @@ def main() -> None:
         )
         search.fit(train[feature_cols], train[target_col], groups=train[args.group_col])
         pred = search.predict(test[feature_cols])
-        fold_pred = test[[args.image_col, "image_key", args.group_col, target_col]].copy()
+        fold_pred = test[["image_path", "image_key", "n_crops", args.group_col, target_col]].copy()
         fold_pred["predicted"] = pred
         fold_pred["fold"] = fold
         predictions.append(fold_pred)
@@ -176,7 +211,7 @@ def main() -> None:
             pd.DataFrame({"fold": fold, "feature": feature_cols, "feature_importance": rf.feature_importances_})
         )
         fold_pred = fold_pred.copy()
-        fold_image_pred = image_level_predictions(fold_pred, args.image_col, args.group_col, target_col)
+        fold_image_pred = image_level_predictions(fold_pred, "image_path", args.group_col, target_col)
         summary = metrics(fold_image_pred["observed"].to_numpy(), fold_image_pred["predicted"].to_numpy())
         summary.update(
             {
@@ -194,7 +229,7 @@ def main() -> None:
     pred_df = pd.concat(predictions, ignore_index=True)
     imp_df = pd.concat(importances, ignore_index=True)
     fold_df = pd.DataFrame(fold_summaries)
-    image_pred_df = image_level_predictions(pred_df, args.image_col, args.group_col, target_col)
+    image_pred_df = image_level_predictions(pred_df, "image_path", args.group_col, target_col)
     genotype_pred_df = genotype_level_predictions(image_pred_df, args.group_col)
     overall = pd.DataFrame([metrics(image_pred_df["observed"].to_numpy(), image_pred_df["predicted"].to_numpy())])
     overall["target"] = args.target

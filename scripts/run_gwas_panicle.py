@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata as importlib_metadata
 import json
 import math
 import time
@@ -18,6 +19,8 @@ from panicle.data.loaders import load_genotype_file
 from panicle.matrix.kinship_loco import PANICLE_K_VanRaden_LOCO
 from panicle.matrix.pca import PANICLE_PCA
 from panicle.utils.effective_tests import estimate_effective_tests_from_genotype
+
+from embedding_io import PROVENANCE_COLUMNS, assert_fit_split_provenance
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -60,16 +63,36 @@ def load_traits(blue_file: Path, trait_regex: str, trait_file: Path | None, trai
     return list(dict.fromkeys(traits))
 
 
+def collapse_duplicate_genotypes(df: pd.DataFrame, genotype_col: str, value_cols: list[str], source: Path) -> pd.DataFrame:
+    """Collapse duplicate genotype rows only when all requested values agree."""
+    conflicts: list[str] = []
+    for genotype, sub in df.groupby(genotype_col, dropna=False):
+        for col in value_cols:
+            if sub[col].dropna().nunique() > 1:
+                conflicts.append(str(genotype))
+                break
+    if conflicts:
+        raise ValueError(
+            f"{source} has conflicting trait/covariate values for {len(conflicts)} duplicate genotypes: {conflicts[:5]}"
+        )
+    return df.groupby(genotype_col, as_index=False)[value_cols].first()
+
+
 def load_phenotypes(blue_file: Path, genome_ids: list[str], traits: list[str], genotype_col: str) -> pd.DataFrame:
-    pheno = pd.read_csv(blue_file, usecols=[genotype_col, *traits])
+    header = pd.read_csv(blue_file, nrows=0).columns
+    provenance_cols = [c for c in PROVENANCE_COLUMNS if c in header]
+    pheno = pd.read_csv(blue_file, usecols=[genotype_col, *traits, *provenance_cols])
     pheno[genotype_col] = pheno[genotype_col].astype(str).str.replace(" ", "", regex=False)
-    return pheno.drop_duplicates(genotype_col).set_index(genotype_col).reindex(genome_ids)[traits]
+    assert_fit_split_provenance(pheno, blue_file, traits)
+    pheno = collapse_duplicate_genotypes(pheno, genotype_col, traits, blue_file)
+    return pheno.set_index(genotype_col).reindex(genome_ids)[traits]
 
 
 def load_covariates(covariate_file: Path, genome_ids: list[str], covariate_cols: list[str]) -> pd.DataFrame:
     cov = pd.read_csv(covariate_file, usecols=["genotype", *covariate_cols])
     cov["genotype"] = cov["genotype"].astype(str).str.replace(" ", "", regex=False)
-    cov = cov.drop_duplicates("genotype").set_index("genotype").reindex(genome_ids)
+    cov = collapse_duplicate_genotypes(cov, "genotype", covariate_cols, covariate_file)
+    cov = cov.set_index("genotype").reindex(genome_ids)
     return cov[covariate_cols]
 
 
@@ -88,6 +111,16 @@ def marker_frame(geno_map) -> pd.DataFrame:
     rename = {c: c.upper() for c in df.columns}
     df = df.rename(columns=rename)
     return df
+
+
+def package_versions() -> dict[str, str | None]:
+    versions: dict[str, str | None] = {}
+    for package in ["panicle", "numpy", "pandas", "matplotlib"]:
+        try:
+            versions[package] = importlib_metadata.version(package)
+        except importlib_metadata.PackageNotFoundError:
+            versions[package] = None
+    return versions
 
 
 def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path) -> None:
@@ -354,6 +387,7 @@ def main() -> None:
                 "lrt_refinement": True,
                 "lrt_solver": args.lrt_solver,
                 "effective_tests_context": effective_context,
+                "package_versions": package_versions(),
             },
             indent=2,
         )
