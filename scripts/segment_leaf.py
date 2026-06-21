@@ -143,9 +143,9 @@ def main() -> None:
     parser.add_argument("--output-prefix", type=str, default="leaf_segmentation", help="Prefix for output files when a single image is provided.")
     parser.add_argument("--output-dir", type=Path, default=Path("demo2_leaves"), help="Directory to write outputs when processing a folder.")
     parser.add_argument("--trim-left", type=int, default=300, help="Pixels to trim from left border.")
-    parser.add_argument("--trim-right", type=int, default=100, help="Pixels to trim from right border (default: 100 for device 7).")
-    parser.add_argument("--card-height", type=int, default=1310, help='Pixel height of color reference card in upper right corner')
-    parser.add_argument('--card-width', type=int, default=750, help='Pixel height of color reference card in upper right corner')
+    parser.add_argument("--trim-right", type=int, default=100, help="Pixels to trim from right border.")
+    parser.add_argument("--card-height", type=int, default=1310, help="Pixel height of color reference card in upper right corner")
+    parser.add_argument("--card-width", type=int, default=750, help="Pixel width of color reference card in upper right corner")
     args = parser.parse_args()
 
     input_path = args.image

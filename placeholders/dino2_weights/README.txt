@@ -4,8 +4,8 @@ The paper companion repository does not redistribute DINOv2 weights.
 Default expected use:
   python scripts/extract_embeddings.py ... --backend dino2 --dino2-weights placeholders/dino2_weights
 
-If this directory contains a .pth checkpoint, the script loads the selected
-torch.hub DINOv2 architecture with pretrained=False and applies that checkpoint
+If this directory contains a .pth checkpoint, the script loads
+dinov2_vitl14_reg with pretrained=False and applies that checkpoint
 with strict=True. Mismatched checkpoints fail instead of loading partially. If
 no .pth file is present, torch.hub downloads/caches the
 official dinov2_vitl14_reg weights.

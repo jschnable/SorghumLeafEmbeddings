@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Segment leaf images, crop along the leaf axis, and extract embeddings.
 
-This is the cleaned, parameterized version of the one-step SAM3 workflow from
+This is the cleaned, parameterized version of the one-step embedding workflow from
 ``fieldLeafImaging_github/src/sam3/extract_embeddings_one_step.py``.  It keeps
-the OpenCV segmentation and crop geometry used in that script and adds a
-``--backend dino2`` option that applies the same crops to DINOv2.
+the OpenCV segmentation and crop geometry used in that script and supports
+``--backend sam3`` (default) or ``--backend dino2`` on the same crops.
 """
 
 from __future__ import annotations
@@ -384,30 +384,40 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image_input", help="Image-list CSV, image directory, image file, or glob")
     parser.add_argument("-o", "--output", required=True, type=Path)
-    parser.add_argument("--image-col", default="image_path")
-    parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3")
-    parser.add_argument("--sam3-weights", type=Path, default=REPO_ROOT / "placeholders" / "sam3_weights")
-    parser.add_argument("--dino2-weights", type=Path, default=REPO_ROOT / "placeholders" / "dino2_weights")
-    parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--step", type=int, default=500)
-    parser.add_argument("--crop-width", type=int, default=1000)
-    parser.add_argument("--crop-height", type=int, default=2000)
-    parser.add_argument("--mask-pixels-min", type=int, default=750000)
-    parser.add_argument("--mask-pixels-max", type=int, default=7500000)
-    parser.add_argument("--tolerance1", type=int, default=50)
-    parser.add_argument("--tolerance2", type=int, default=50)
-    parser.add_argument("--down-from-top", type=int, default=750)
-    parser.add_argument("--up-from-bottom", type=int, default=20)
-    parser.add_argument("--trim-left", type=int, default=300)
-    parser.add_argument("--trim-right", type=int, default=100)
-    parser.add_argument("--card-height", type=int, default=1310)
-    parser.add_argument("--card-width", type=int, default=750)
-    parser.add_argument("--prompt", default="leaf")
-    parser.add_argument("--threshold", type=float, default=0.5)
-    parser.add_argument("--mask-threshold", type=float, default=0.5)
-    parser.add_argument("--no-sam3-fallback", action="store_true")
-    parser.add_argument("--summary-output", type=Path)
+    parser.add_argument("--image-col", default="image_path", help="CSV column containing image paths. Default image_path.")
+    parser.add_argument("--backend", choices=["sam3", "dino2"], default="sam3", help="Embedding backbone: sam3 or dino2.")
+    parser.add_argument(
+        "--sam3-weights",
+        type=Path,
+        default=REPO_ROOT / "placeholders" / "sam3_weights",
+        help="Hugging Face SAM3 model directory.",
+    )
+    parser.add_argument(
+        "--dino2-weights",
+        type=Path,
+        default=REPO_ROOT / "placeholders" / "dino2_weights",
+        help="Optional directory with a local dinov2_vitl14_reg .pth checkpoint; uses torch.hub if empty.",
+    )
+    parser.add_argument("--device", default="cuda", choices=["cuda", "cpu"], help="Torch device for embedding extraction.")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for Python, NumPy, and torch.")
+    parser.add_argument("--step", type=int, default=500, help="Sliding-window step along the leaf axis (pixels).")
+    parser.add_argument("--crop-width", type=int, default=1000, help="Perspective crop width (pixels).")
+    parser.add_argument("--crop-height", type=int, default=2000, help="Perspective crop height (pixels).")
+    parser.add_argument("--mask-pixels-min", type=int, default=750000, help="Minimum accepted mask pixel count.")
+    parser.add_argument("--mask-pixels-max", type=int, default=7500000, help="Maximum accepted mask pixel count.")
+    parser.add_argument("--tolerance1", type=int, default=50, help="Color tolerance for the top-center flood fill.")
+    parser.add_argument("--tolerance2", type=int, default=50, help="Color tolerance for the bottom-center flood fill.")
+    parser.add_argument("--down-from-top", type=int, default=750, help="Pixels down from the top for the first flood-fill seed.")
+    parser.add_argument("--up-from-bottom", type=int, default=20, help="Pixels up from the bottom for the second flood-fill seed.")
+    parser.add_argument("--trim-left", type=int, default=300, help="Pixels to trim from the left mask border.")
+    parser.add_argument("--trim-right", type=int, default=100, help="Pixels to trim from the right mask border.")
+    parser.add_argument("--card-height", type=int, default=1310, help="Pixel height of the upper-right color card veto region.")
+    parser.add_argument("--card-width", type=int, default=750, help="Pixel width of the upper-right color card veto region.")
+    parser.add_argument("--prompt", default="leaf", help="SAM3 text prompt used when OpenCV segmentation fails QC.")
+    parser.add_argument("--threshold", type=float, default=0.5, help="SAM3 instance-segmentation score threshold.")
+    parser.add_argument("--mask-threshold", type=float, default=0.5, help="SAM3 mask binarization threshold.")
+    parser.add_argument("--no-sam3-fallback", action="store_true", help="Do not fall back to SAM3 when OpenCV segmentation fails QC.")
+    parser.add_argument("--summary-output", type=Path, help="Optional per-image segmentation/cropping summary CSV.")
     return parser.parse_args()
 
 

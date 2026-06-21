@@ -9,7 +9,7 @@ paradox") pooled correlations: an IC that only tracks disease because both diffe
 by environment will show up pooled but not within environments.
 
 Outputs a tidy CSV (one row per IC x scope) and prints the FDR-significant ICs,
-which can be passed to the variance-partitioning figure via --highlight-ics.
+which can be passed to the variance-partitioning figure via --corr-csv and --corr-rows.
 
     python scripts/correlate_ics_disease.py \
         --ic-scores output/dimreduction_all3_from_npz_float32/ic_scores.csv \
