@@ -70,11 +70,6 @@ The environment names in the cleaned metadata are `Nebraska2025`,
 normalized to the marker-file style used by the local PLINK/VCF-derived sample
 lists, for example `SC1166` rather than `SC 1166`.
 
-Metadata provenance:
-
-- `estimated_leaf_area` is SAM3/OpenCV mask pixel area (`mask_pixels`) from the per-image SAM3 summary files.
-- Alabama genotype IDs are derived from `2025 Sorghum_Update_073125-XK.xlsx`, sheet `AccessionList`, using plot numbers in `Block1`-`Block4`.
-
 ## Not Included in GitHub
 
 These files are intentionally not committed to this GitHub repository:
