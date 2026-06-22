@@ -45,7 +45,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tol", type=float, default=1e-3)
     parser.add_argument(
         "--fit-split-column",
-        help="Fit scaler/PCA/ICA on a group-level training split from this metadata column.",
+        default="genotype",
+        help="Fit scaler/PCA/ICA on a group-level training split from this metadata column "
+             "(default 'genotype'). Pass '' to fit on all rows; that is not recommended for "
+             "production because downstream BLUE/RF/GWAS scripts require group-aware fit provenance.",
     )
     parser.add_argument("--fit-test-frac", type=float, default=0.10)
     return parser.parse_args()
@@ -76,7 +79,7 @@ def main() -> None:
     meta_cols = [c for c in df.columns if c not in cols]
     x = df[cols].to_numpy(np.float32)
 
-    if args.fit_split_column:
+    if args.fit_split_column and args.fit_split_column in df.columns:
         fit_mask, test_groups = fit_mask_from_group_split(
             df, args.fit_split_column, args.fit_test_frac, args.seed
         )
@@ -84,14 +87,26 @@ def main() -> None:
             args.out_dir / "test_groups.csv", index=False
         )
     else:
+        if args.fit_split_column:
+            warnings.warn(
+                f"--fit-split-column {args.fit_split_column!r} is not in the embedding table; "
+                "fitting scaler/PCA/ICA on all rows. Downstream BLUE/RF/GWAS scripts will reject "
+                "these scores because they lack group-aware fit provenance.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            warnings.warn(
+                "Fitting scaler/PCA/ICA on all rows because --fit-split-column was disabled. "
+                "Group-aware fitting (the default, 'genotype') is recommended for production "
+                "disease-trait analyses.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        # Blank the provenance so downstream scripts refuse non-group-aware scores.
+        args.fit_split_column = ""
         fit_mask = np.ones(len(df), dtype=bool)
         test_groups = []
-        warnings.warn(
-            "Fitting scaler/PCA/ICA on all rows because --fit-split-column was not provided. "
-            "Use --fit-split-column genotype for production disease-trait analyses.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
     fit_role = np.where(fit_mask, "fit", "heldout")
     provenance = {
         "fit_split_column": args.fit_split_column,

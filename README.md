@@ -169,16 +169,18 @@ python scripts/calculate_pcs_ics.py \
   --out-dir data/generatable/dimreduction \
   --n-pcs 64 \
   --n-ics 20 \
-  --ica-whiten-pcs 20 \
-  --fit-split-column genotype
+  --ica-whiten-pcs 20
 ```
 
 Input may be either `.npz` or `.csv`. Outputs include `pc_scores.csv`,
 `ic_scores.csv`, `pca_variance_curve.csv`, and saved sklearn/joblib models.
 
-Use `--fit-split-column genotype` for production disease-trait analyses so
-the scaler, PCA, ICA, and ICA sign orientation are learned from genotype-level
-training rows only. The script warns if no fit split is provided.
+`--fit-split-column` defaults to `genotype`, so the scaler, PCA, ICA, and ICA
+sign orientation are learned from genotype-level training rows only. Pass
+`--fit-split-column ''` to fit on all rows; that is not recommended for
+production, and the downstream BLUE/RF/GWAS scripts reject the resulting scores
+because they lack group-aware fit provenance. If the named column is absent from
+the embedding table the script warns and falls back to fitting on all rows.
 `--fit-test-frac` controls the held-out group fraction. Default `0.10`.
 
 ### 3. Random Forest Prediction
