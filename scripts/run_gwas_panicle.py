@@ -193,6 +193,15 @@ def sample_hash(sample_ids: list[str]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def context_path(path: Path) -> str:
+    """Return stable repo-relative paths for cache contexts when possible."""
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(resolved)
+
+
 def effective_tests_context(
     genotype: Path,
     genotype_format: str,
@@ -200,7 +209,7 @@ def effective_tests_context(
     n_markers: int,
 ) -> dict[str, object]:
     return {
-        "genotype": str(genotype),
+        "genotype": context_path(genotype),
         "genotype_format": genotype_format,
         "n_markers": int(n_markers),
         "n_samples": int(len(sample_ids)),
