@@ -61,7 +61,6 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `data/provided/leaf_area_image_level.csv`: image-level leaf mask areas split out from `field_image_metadata.csv` for direct use as raw leaf-area covariates.
 - `data/provided/flowering_time_plot_level.csv`: Nebraska 2025 plot-level flowering time observations (`days_to_flower`) with plot, genotype, row, column, and replicate metadata.
 - `data/provided/image_ids_exclude.csv`: image-level QC exclusion list (`environment`, `image_id`, `plotNumber`, `genotype`). These images are skipped by `scripts/extract_embeddings.py` via `--exclude-list`. It is the complement of the per-environment image keep-lists used in the original analysis (un-genotyped border plots, failed segmentation/cropping, and curator-dropped frames).
-- `data/provided/images_to_exclude.txt`: genotype/image exclusion list from the old project.
 - `data/provided/genotype_conversion_table.csv`: legacy genotype alias reference. The distributed metadata files already use marker-compatible genotype IDs.
 - `data/provided/gwas_covariates_leaf_area_flowering_time.csv`: genotype-level GWAS covariates used by the paper-style SAM3 embedding GWAS. Columns are `log_mask_pixels_blue` and `days_to_flower_blue`; the GWAS script z-scores them internally.
 

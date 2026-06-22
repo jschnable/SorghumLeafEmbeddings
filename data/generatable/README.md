@@ -32,8 +32,7 @@ python scripts/calculate_pcs_ics.py --embeddings data/generatable/embeddings.npz
 ### `blues/` — `scripts/calculate_blues.py`
 `blues_<environment>.csv`, `heritability_<environment>.csv`, and
 `variance_partitioning_<environment>.csv`. Needs a score table (IC scores or
-embeddings) and the committed `data/provided/field_image_metadata.csv` and
-`data/provided/images_to_exclude.txt`.
+embeddings) and the committed `data/provided/field_image_metadata.csv`.
 
 ```bash
 python scripts/calculate_blues.py --scores data/generatable/dimreduction/ic_scores.csv --environment all --include-leaf-area

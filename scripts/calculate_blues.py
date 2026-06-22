@@ -616,10 +616,6 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     data = scores.merge(metadata, on="image_key", how="left", suffixes=("", "_meta"))
     warn_unmatched_metadata(scores, data["environment"], args.scores)
     data = prefer_metadata_columns(data, ["genotype", "row", "column", "device", "plotNumber"])
-    if args.exclude:
-        excluded = set(x.strip().replace(" ", "") for x in args.exclude.read_text().split() if x.strip())
-        data["genotype"] = data["genotype"].astype(str).str.replace(" ", "", regex=False)
-        data = data.loc[~data["genotype"].isin(excluded)].copy()
     if args.environment != "all":
         data = data.loc[data["environment"].eq(args.environment)].copy()
     data = data.dropna(subset=["genotype", "environment", "row", "column", *traits]).copy()
@@ -708,7 +704,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scores", required=True, type=Path, help="Embedding score or IC score CSV/NPZ")
     parser.add_argument("--metadata", type=Path, default=REPO_ROOT / "data" / "provided" / "field_image_metadata.csv")
-    parser.add_argument("--exclude", type=Path, default=REPO_ROOT / "data" / "provided" / "images_to_exclude.txt")
     parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "generatable" / "blues",
                         help="Output directory. Default data/generatable/blues.")
     parser.add_argument("--environment", choices=["all", *ENVIRONMENTS], default="all")
