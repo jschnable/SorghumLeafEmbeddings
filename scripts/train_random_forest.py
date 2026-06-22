@@ -23,6 +23,8 @@ from embedding_io import assert_fit_split_provenance, image_key, read_embedding_
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+ENVIRONMENTS = ["Nebraska2025", "Alabama2025", "Georgia2025"]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -31,8 +33,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--human-scores", type=Path, default=REPO_ROOT / "data" / "provided" / "human_disease_scores.csv")
     parser.add_argument("--exg-ratings", type=Path, default=REPO_ROOT / "data" / "provided" / "exg_ratings.csv")
     parser.add_argument("--metadata", type=Path, default=REPO_ROOT / "data" / "provided" / "field_image_metadata.csv")
-    parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "generatable" / "random_forest",
-                        help="Output directory. Default data/generatable/random_forest.")
+    parser.add_argument("--out-dir", type=Path, default=None,
+                        help="Output directory. Default data/generatable/random_forest_<target>_<environment>.")
+    parser.add_argument("--environment", choices=ENVIRONMENTS, default="Nebraska2025",
+                        help="Single environment to analyze (default Nebraska2025). Disease prediction is "
+                             "reported within one environment to avoid environment confounding; pooling "
+                             "across environments is intentionally not supported.")
     parser.add_argument("--feature-regex", default=r"^(embedding_(mean|std)_\d+|PC\d+|IC\d+)$")
     parser.add_argument("--group-col", default="genotype")
     parser.add_argument("--image-col", default="image_path")
@@ -121,11 +127,19 @@ def load_training_table(args: argparse.Namespace) -> tuple[pd.DataFrame, list[st
         )
     )
 
-    metadata = pd.read_csv(args.metadata, usecols=["image_id", args.group_col])
+    metadata = pd.read_csv(args.metadata, usecols=["image_id", args.group_col, "environment"])
     metadata["image_key"] = metadata["image_id"].map(image_key)
-    metadata = collapse_unique(metadata, "image_key", args.group_col, args.metadata)
-    table = image_features.merge(metadata[["image_key", args.group_col]], on="image_key", how="left")
+    genotype_meta = collapse_unique(metadata, "image_key", args.group_col, args.metadata)
+    table = image_features.merge(genotype_meta[["image_key", args.group_col]], on="image_key", how="left")
     warn_join_loss(table, args.group_col, args.features, "metadata genotype")
+
+    environment_meta = collapse_unique(metadata, "image_key", "environment", args.metadata)
+    table = table.merge(environment_meta[["image_key", "environment"]], on="image_key", how="left")
+    before = len(table)
+    table = table[table["environment"] == args.environment].copy()
+    if table.empty:
+        raise ValueError(f"No images for environment {args.environment!r}")
+    print(f"environment {args.environment}: kept {len(table)}/{before} images")
 
     if args.target == "human_score":
         target = pd.read_csv(args.human_scores, usecols=["image_id", "human_score"])
@@ -170,6 +184,8 @@ def genotype_level_predictions(image_df: pd.DataFrame, group_col: str) -> pd.Dat
 
 def main() -> None:
     args = parse_args()
+    if args.out_dir is None:
+        args.out_dir = REPO_ROOT / "data" / "generatable" / f"random_forest_{args.target}_{args.environment.lower()}"
     args.out_dir.mkdir(parents=True, exist_ok=True)
     table, feature_cols, target_col = load_training_table(args)
 
@@ -234,6 +250,7 @@ def main() -> None:
     genotype_pred_df = genotype_level_predictions(image_pred_df, args.group_col)
     overall = pd.DataFrame([metrics(image_pred_df["observed"].to_numpy(), image_pred_df["predicted"].to_numpy())])
     overall["target"] = args.target
+    overall["environment"] = args.environment
     overall["evaluation_unit"] = "image"
     overall["n_features"] = len(feature_cols)
     overall["n_genotypes"] = int(image_pred_df[args.group_col].nunique())
@@ -241,6 +258,7 @@ def main() -> None:
         [metrics(genotype_pred_df["observed"].to_numpy(), genotype_pred_df["predicted"].to_numpy())]
     )
     genotype_overall["target"] = args.target
+    genotype_overall["environment"] = args.environment
     genotype_overall["evaluation_unit"] = "genotype"
     genotype_overall["n_features"] = len(feature_cols)
     genotype_overall["n_genotypes"] = int(genotype_pred_df[args.group_col].nunique())

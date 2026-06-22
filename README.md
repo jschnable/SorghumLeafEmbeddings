@@ -57,7 +57,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `data/provided/examples/images/`: five copied example leaf images.
 - `data/provided/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `data/provided/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`.
+- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`. Fill/border/bulk plots that carry no single marker-mappable line use the sentinel genotype `Fill (Exclude)`; these and any `Mixed` plots are skipped by the genotype-level analyses and by `audit_embedding_coverage.py`. `PI564163` is the repeated Nebraska check (~140 plots).
 - `data/provided/leaf_area_image_level.csv`: image-level leaf mask areas split out from `field_image_metadata.csv` for direct use as raw leaf-area covariates.
 - `data/provided/flowering_time_plot_level.csv`: Nebraska 2025 plot-level flowering time observations (`days_to_flower`) with plot, genotype, row, column, and replicate metadata.
 - `data/provided/image_ids_exclude.csv`: image-level QC exclusion list (`environment`, `image_id`, `plotNumber`, `genotype`). These images are skipped by `scripts/extract_embeddings.py` via `--exclude-list`. It is the complement of the per-environment image keep-lists used in the original analysis (un-genotyped border plots, failed segmentation/cropping, and curator-dropped frames).
@@ -139,6 +139,28 @@ CSV output is still supported for debugging by giving an output path ending in
 `.csv`, but it is much larger. NPZ features are always written and read as
 `float32`.
 
+### 1b. Audit embedding coverage (run after every full extraction)
+
+`scripts/extract_embeddings.py` only processes the images it is handed and only
+logs a status for images that were fed in; images missing from the input list
+leave no trace and silently shrink the embedding matrix. Always reconcile a
+fresh embedding matrix against the authoritative image set before using it
+downstream:
+
+```bash
+python scripts/audit_embedding_coverage.py \
+  --embeddings data/generatable/embeddings/sam3_all3_embeddings_float32.npz \
+  --missing-out data/generatable/embedding_coverage_missing.csv
+```
+
+It prints a per-environment table of expected / embedded / excluded / failed /
+**unexplained-missing** images and exits non-zero if any expected image
+(present in `field_image_metadata.csv`, not on `image_ids_exclude.csv`) is
+neither embedded nor explained by a logged segmentation/cropping failure. The
+`--missing-out` CSV lists those ids so the extraction can be rerun over the full
+set. Treat a non-zero exit as a hard stop: regenerate the embeddings before
+running PCA/ICA, BLUEs, random forest, or GWAS.
+
 ### 2. PCA and ICA
 
 ```bash
@@ -166,8 +188,7 @@ Predict human disease scores:
 ```bash
 python scripts/train_random_forest.py \
   --features data/generatable/dimreduction/ic_scores.csv \
-  --target human_score \
-  --out-dir data/generatable/rf_human
+  --target human_score
 ```
 
 Predict ExG ratings:
@@ -175,9 +196,15 @@ Predict ExG ratings:
 ```bash
 python scripts/train_random_forest.py \
   --features data/generatable/dimreduction/ic_scores.csv \
-  --target exg \
-  --out-dir data/generatable/rf_exg
+  --target exg
 ```
+
+Prediction is reported within a single environment to avoid environment
+confounding; `--environment` defaults to `Nebraska2025` (the other choices are
+`Alabama2025` and `Georgia2025`). Pooling across environments is intentionally
+not supported. Each run writes to
+`data/generatable/random_forest_<target>_<environment>` by default, so different
+targets and environments do not overwrite each other; override with `--out-dir`.
 
 Outputs:
 

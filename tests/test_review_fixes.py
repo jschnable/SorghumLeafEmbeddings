@@ -93,7 +93,13 @@ def test_rf_training_table_aggregates_to_images(tmp_path: Path) -> None:
             "ica_sign_source": ["fit_rows_only"] * 3,
         }
     )
-    metadata = pd.DataFrame({"image_id": ["img1", "img2"], "genotype": ["G1", "G2"]})
+    metadata = pd.DataFrame(
+        {
+            "image_id": ["img1", "img2"],
+            "genotype": ["G1", "G2"],
+            "environment": ["Nebraska2025", "Nebraska2025"],
+        }
+    )
     scores = pd.DataFrame({"image_id": ["img1", "img2"], "human_score": [2.0, 5.0]})
     features_path = tmp_path / "features.csv"
     metadata_path = tmp_path / "metadata.csv"
@@ -112,6 +118,7 @@ def test_rf_training_table_aggregates_to_images(tmp_path: Path) -> None:
         target="human_score",
         human_scores=scores_path,
         exg_ratings=tmp_path / "unused.csv",
+        environment="Nebraska2025",
         folds=2,
     )
     table, feature_cols, target_col = train_random_forest.load_training_table(args)
