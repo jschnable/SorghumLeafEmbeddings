@@ -7,6 +7,7 @@ data/generatable/*
 # are obtained separately and must never be committed. Only the README files that
 # document where to get each asset are tracked.
 data/externalsourcerequired/**
+data/externalsourcerequired/**/**
 !data/externalsourcerequired/**/
 !data/externalsourcerequired/README.md
 !data/externalsourcerequired/**/README.txt
