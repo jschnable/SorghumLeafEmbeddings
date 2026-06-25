@@ -72,10 +72,12 @@ def varying_effects(frame: pd.DataFrame, columns: list[str]) -> list[str]:
 
 
 def model_random_effects(frame: pd.DataFrame, args: argparse.Namespace, genotype_random: bool) -> list[str]:
+    spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
     effects = []
     if args.environment == "all":
         effects.extend(varying_effects(frame, ["environment"]))
-    effects.extend(varying_effects(frame, ["row", "column", "device"]))
+    effects.extend(varying_effects(frame, spatial_cols))
+    effects.extend(varying_effects(frame, ["device"]))
     if genotype_random:
         effects.extend(varying_effects(frame, ["genotype"]))
         if args.environment == "all":
@@ -85,6 +87,7 @@ def model_random_effects(frame: pd.DataFrame, args: argparse.Namespace, genotype
 
 def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     frame = data.copy()
+    spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
     if args.environment == "all":
         # genotype_x_environment variance is only informed by genotypes observed in
         # >=2 environments; single-environment genotypes add degenerate GxE levels
@@ -104,7 +107,10 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
     leaf_present = bool(frame["log_estimated_leaf_area"].notna().any())
 
     plot_col = plot_column(frame)
-    group_cols = ["environment", "row", "column", "device", "genotype", plot_col]
+    group_cols = ["environment", "genotype", plot_col]
+    for col in [*spatial_cols, "device"]:
+        if col in frame.columns:
+            group_cols.append(col)
     if "genotype_x_environment" in frame.columns:
         group_cols.append("genotype_x_environment")
     group_cols = list(dict.fromkeys(group_cols))
@@ -615,10 +621,11 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     metadata["image_key"] = metadata["image_id"].map(image_key)
     data = scores.merge(metadata, on="image_key", how="left", suffixes=("", "_meta"))
     warn_unmatched_metadata(scores, data["environment"], args.scores)
-    data = prefer_metadata_columns(data, ["genotype", "row", "column", "device", "plotNumber"])
+    data = prefer_metadata_columns(data, ["genotype", "row", "column", "block", "device", "plotNumber"])
     if args.environment != "all":
         data = data.loc[data["environment"].eq(args.environment)].copy()
-    data = data.dropna(subset=["genotype", "environment", "row", "column", *traits]).copy()
+    spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip() and c.strip() in data.columns]
+    data = data.dropna(subset=["genotype", "environment", *spatial_cols, *traits]).copy()
     data["genotype"] = data["genotype"].astype(str).str.replace(" ", "", regex=False)
     data["row"] = data["environment"].astype(str) + "_" + data["row"].astype(str)
     data["column"] = data["environment"].astype(str) + "_" + data["column"].astype(str)
@@ -725,7 +732,7 @@ def parse_args() -> argparse.Namespace:
         "Set 0 to disable and fit all traits in one call.",
     )
     parser.add_argument("--verbose-summaries", action="store_true")
-    parser.add_argument("--spatial-cols", default="row,column")
+    parser.add_argument("--spatial-cols", default="row,column,block")
     parser.add_argument(
         "--metadata-optional",
         action="store_true",
