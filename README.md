@@ -57,7 +57,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `data/provided/examples/images/`: five copied example leaf images.
 - `data/provided/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `data/provided/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), `leaf_area_segmentation_method` (`CV2` or `SAM3`), and `leaf_area_status`. Fill/border/bulk plots that carry no single marker-mappable line use the sentinel genotype `Fill (Exclude)`; these and any `Mixed` plots are skipped by the genotype-level analyses and by `audit_embedding_coverage.py`. `PI564163` is the repeated Nebraska check (~140 plots).
+- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), historical `leaf_area_segmentation_method`, and `leaf_area_status`. New embedding extraction uses OpenCV segmentation only. Fill/border/bulk plots that carry no single marker-mappable line use the sentinel genotype `Fill (Exclude)`; these and any `Mixed` plots are skipped by the genotype-level analyses and by `audit_embedding_coverage.py`. `PI564163` is the repeated Nebraska check (~140 plots).
 - `data/provided/leaf_area_image_level.csv`: image-level leaf mask areas split out from `field_image_metadata.csv` for direct use as raw leaf-area covariates.
 - `data/provided/flowering_time_plot_level.csv`: Nebraska 2025 plot-level flowering time observations (`days_to_flower`) with plot, genotype, row, column, and replicate metadata.
 - `data/provided/image_ids_exclude.csv`: image-level QC exclusion list (`environment`, `image_id`, `plotNumber`, `genotype`). These images are skipped by `scripts/extract_embeddings.py` via `--exclude-list`. It is the complement of the per-environment image keep-lists used in the original analysis (un-genotyped border plots, failed segmentation/cropping, and curator-dropped frames).
@@ -96,8 +96,7 @@ python scripts/extract_embeddings.py \
   data/provided/examples/example_image_list.csv \
   --backend sam3 \
   --sam3-weights data/externalsourcerequired/sam3_weights \
-  --output data/generatable/example_sam3_embeddings.npz \
-  --summary-output data/generatable/example_sam3_summary.csv
+  --output data/generatable/example_sam3_embeddings.npz
 ```
 
 Use DINOv2 instead:
@@ -110,9 +109,10 @@ python scripts/extract_embeddings.py \
   --output data/generatable/example_dino2_embeddings.npz
 ```
 
-DINOv2 runs use the fixed `dinov2_vitl14_reg` backbone. Crops are resized with
-aspect ratio preserved and padded to the DINOv2 input size; they are not
-stretched to a square.
+Both backends use the same default `2016 x 2016` perspective crop. Before model
+preprocessing, crops are explicitly downsampled with OpenCV area resize to
+`1008 x 1008`; with the default crop size this is an exact 2:1 reduction.
+DINOv2 runs use the fixed `dinov2_vitl14_reg` backbone.
 
 Important parameters:
 
@@ -125,7 +125,8 @@ Important parameters:
 - `--seed`: random seed for Python, NumPy, and torch.
 - `--sam3-weights`: Hugging Face SAM3 model directory.
 - `--dino2-weights`: optional directory for a local `dinov2_vitl14_reg` `.pth` checkpoint; if empty, `torch.hub` loads the official weights.
-- `--step`, `--crop-width`, `--crop-height`: legacy crop geometry.
+- `--step`, `--crop-width`, `--crop-height`: crop placement and geometry.
+  Default crop width and height are `2016` pixels.
 - `--mask-pixels-min`, `--mask-pixels-max`: mask QC bounds.
 - OpenCV segmentation options: `--tolerance1`, `--tolerance2`, `--down-from-top`, `--up-from-bottom`, `--trim-left`, `--trim-right`, `--card-height`, `--card-width`.
 
@@ -134,6 +135,12 @@ For distribution, write embeddings as `.npz`. The NPZ stores:
 - `features`: embedding matrix, always `float32`.
 - `feature_columns`: names of embedding columns.
 - `metadata_json`: JSON metadata table for image path, crop index, backend, mask diagnostics, etc.
+
+Every extraction also writes a per-image summary sidecar beside the embedding
+output, named `<output-stem>_summary.csv`. It records read/segmentation/cropping
+status, mask area, image dimensions, extraction parameters, package versions,
+and the PCA leaf-axis geometry used for cropping (`leaf_angle_degrees`,
+`leaf_length_pixels`, `leaf_width_pixels`, and axis vectors).
 
 CSV output is still supported for debugging by giving an output path ending in
 `.csv`, but it is much larger. NPZ features are always written and read as

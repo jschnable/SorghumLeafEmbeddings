@@ -4,6 +4,7 @@ from argparse import Namespace
 from pathlib import Path
 import sys
 
+import cv2
 import numpy as np
 import pandas as pd
 import pytest
@@ -149,11 +150,125 @@ def test_segment_array_reports_failure_reason() -> None:
     assert result.reason == "no_component_touching_both_sides"
 
 
-def test_dino_preprocess_preserves_aspect_with_padding() -> None:
+def test_extract_embeddings_uses_cv2_segmentation_only(tmp_path: Path) -> None:
+    class DummyExtractor:
+        def metadata(self) -> dict[str, object]:
+            return {"backend_model": "dummy"}
+
+        def fallback_mask(self, *_args, **_kwargs) -> None:
+            raise AssertionError("segmentation fallback should not be called")
+
+        def embedding(self, _crop: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            raise AssertionError("embedding should not run when CV2 segmentation fails")
+
+    image_path = tmp_path / "blank.jpg"
+    cv2.imwrite(str(image_path), np.zeros((100, 100, 3), dtype=np.uint8))
+    args = Namespace(
+        tolerance1=50,
+        tolerance2=50,
+        down_from_top=10,
+        up_from_bottom=10,
+        card_height=50,
+        card_width=50,
+        trim_left=0,
+        trim_right=0,
+        mask_pixels_min=1,
+        mask_pixels_max=10_000,
+        step=500,
+        crop_width=1000,
+        crop_height=2000,
+        backend="sam3",
+        seed=0,
+    )
+    rows, summary = extract_embeddings.process_image(image_path, DummyExtractor(), args)
+    assert rows == []
+    assert summary["status"] == "failed_segmentation"
+    assert summary["segmentation_method"] == "CV2"
+    assert summary["failure_reason"] == "no_component_touching_both_sides"
+
+
+def test_crop_geometry_records_leaf_angle_and_width() -> None:
+    image = np.zeros((200, 300, 3), dtype=np.uint8)
+    mask = np.zeros((200, 300), dtype=np.uint8)
+    mask[90:110, 50:250] = 1
+    crops, geometry = extract_embeddings.crops_from_mask(image, mask, step=50, x_dim=50, y_dim=20)
+    assert len(crops) > 0
+    assert geometry["leaf_angle_degrees"] == pytest.approx(0.0)
+    assert geometry["leaf_length_pixels"] == pytest.approx(199.0)
+    assert geometry["leaf_width_pixels"] == pytest.approx(19.0)
+    assert "crop_center_x" in crops[0]
+    assert "crop_corner_0_x" in crops[0]
+    assert crops[0]["crop_bgr"].shape == (20, 50, 3)
+
+
+def test_resize_for_model_uses_shared_square_area_resize() -> None:
+    image = np.zeros((extract_embeddings.DEFAULT_CROP_SIZE, extract_embeddings.DEFAULT_CROP_SIZE, 3), dtype=np.uint8)
+    image[:, : extract_embeddings.DEFAULT_CROP_SIZE // 2] = 255
+    resized = extract_embeddings.resize_for_model(image)
+    assert resized.shape == (extract_embeddings.MODEL_INPUT_SIZE, extract_embeddings.MODEL_INPUT_SIZE, 3)
+    assert (resized[:, :450] > 250).all()
+    assert (resized[:, 558:] < 5).all()
+
+
+def test_dino_preprocess_uses_shared_model_resize() -> None:
     extractor = object.__new__(extract_embeddings.Dino2Extractor)
-    image = np.full((1000, 2000, 3), 255, dtype=np.uint8)
+    image = np.zeros((extract_embeddings.DEFAULT_CROP_SIZE, extract_embeddings.DEFAULT_CROP_SIZE, 3), dtype=np.uint8)
+    image[:, : extract_embeddings.DEFAULT_CROP_SIZE // 2] = 255
     tensor = extractor.preprocess(image)
-    assert tuple(tensor.shape) == (3, extract_embeddings.DINO2_INPUT_SIZE, extract_embeddings.DINO2_INPUT_SIZE)
-    center_column = tensor[:, :, extract_embeddings.DINO2_INPUT_SIZE // 2]
-    assert (center_column[:, 260:-260] > 0.9).all()
-    assert (center_column[:, :200] < 0.01).all()
+    assert tuple(tensor.shape) == (3, extract_embeddings.MODEL_INPUT_SIZE, extract_embeddings.MODEL_INPUT_SIZE)
+    assert (tensor[:, :, :450] > 0.9).all()
+    assert (tensor[:, :, 558:] < -0.9).all()
+
+
+def test_default_crop_size_is_twice_model_input_size() -> None:
+    assert extract_embeddings.DEFAULT_CROP_SIZE == 2 * extract_embeddings.MODEL_INPUT_SIZE
+
+
+def test_embed_crops_rows_record_backend_and_geometry() -> None:
+    class DummyExtractor:
+        def metadata(self) -> dict[str, object]:
+            return {"backend_model": "dummy"}
+
+        def embedding(self, _crop: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            return np.array([1.0, 2.0]), np.array([0.1, 0.2])
+
+    args = Namespace(
+        backend="sam3",
+        seed=0,
+        step=500,
+        crop_width=1000,
+        crop_height=2000,
+        mask_pixels_min=1,
+        mask_pixels_max=10_000,
+        tolerance1=50,
+        tolerance2=50,
+        down_from_top=10,
+        up_from_bottom=10,
+        trim_left=0,
+        trim_right=0,
+        card_height=50,
+        card_width=50,
+    )
+    crops = [{"crop_bgr": np.zeros((20, 50, 3), dtype=np.uint8), "crop_center_x": 10.0}]
+    summary = {
+        "image_path": "img.jpg",
+        "image_id": "img",
+        "status": "ok",
+        "failure_reason": "ok",
+        "segmentation_method": "CV2",
+        "mask_pixels": 123,
+        "n_crops": 1,
+        "leaf_angle_degrees": 0.0,
+    }
+    rows, backend_summary = extract_embeddings.embed_crops(
+        Path("img.jpg"),
+        crops,
+        summary,
+        DummyExtractor(),
+        args,
+        "sam3",
+    )
+    assert rows[0]["backend"] == "sam3"
+    assert rows[0]["backend_model"] == "dummy"
+    assert rows[0]["leaf_angle_degrees"] == pytest.approx(0.0)
+    assert backend_summary["backend"] == "sam3"

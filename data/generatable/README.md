@@ -11,11 +11,14 @@ default path, the script that produces it, and what it needs as input.
 
 ## Files and how to regenerate them
 
-### `embeddings.npz` — `scripts/extract_embeddings.py`
-Per-crop embedding matrix (`float32`) plus metadata. Needs an image-list CSV (the
-committed `data/provided/examples/example_image_list.csv`, or the full image set
-from `data/externalsourcerequired/`) and the SAM3 or DINOv2 weights in
-`data/externalsourcerequired/`. On the full dataset this takes ~10-12 hours.
+### `embeddings.npz` / `embeddings_summary.csv` — `scripts/extract_embeddings.py`
+Per-crop embedding matrix (`float32`) plus metadata, with an automatic per-image
+summary sidecar named from the output stem. Needs an image-list CSV (the committed
+`data/provided/examples/example_image_list.csv`, or the full image set from
+`data/externalsourcerequired/`) and the SAM3 or DINOv2 weights in
+`data/externalsourcerequired/`. Default crops are `2016 x 2016` pixels and are
+OpenCV area-resized to `1008 x 1008` before either backend. On the full dataset
+this takes ~10-12 hours.
 
 ```bash
 python scripts/extract_embeddings.py data/provided/examples/example_image_list.csv --backend sam3
