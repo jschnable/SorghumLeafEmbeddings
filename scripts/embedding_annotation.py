@@ -38,9 +38,13 @@ DEFAULT_VCF = REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_9
 DEFAULT_EXCLUDE_LIST = REPO_ROOT / "data" / "provided" / "image_ids_exclude.csv"
 
 # Field-design columns pulled from field_image_metadata.csv (joined by image key).
+# Leaf-area columns are intentionally NOT pulled from metadata: the npz carries the
+# current run's ``mask_pixels`` and ``segmentation_method`` straight off each crop
+# row, so leaf area and its segmentation outcome reflect this run rather than a
+# prior run's metadata. Per-image failure status lives in the extractor's
+# ``<stem>_summary.csv`` (every emitted crop here passed segmentation and cropping).
 FIELD_COLS = [
     "environment", "plotNumber", "block", "row", "column", "genotype", "device",
-    "estimated_leaf_area", "leaf_area_segmentation_method", "leaf_area_status",
 ]
 
 # Non-genotype labels (normalized: upper-cased, whitespace-stripped) dropped as a
@@ -121,7 +125,7 @@ def annotate_embeddings(
     df = crops.copy()
     df["_key"] = _key_series(df)
 
-    # ---- field design (genotype, env, spatial, leaf area) ------------------ #
+    # ---- field design (genotype, env, spatial) ------------------------------ #
     meta = pd.read_csv(metadata_path)
     meta["_key"] = meta["image_id"].map(image_key)
     field = meta[["_key", *FIELD_COLS]].drop_duplicates("_key")

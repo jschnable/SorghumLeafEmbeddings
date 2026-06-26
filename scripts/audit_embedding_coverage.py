@@ -11,9 +11,11 @@ This script closes that gap. It compares the image keys present in an embedding
 (or score) table against the expected set -- every image in
 ``field_image_metadata.csv`` that is not on the QC exclude list -- and reports,
 per environment, how many expected images are embedded, excluded, explained by a
-logged segmentation/cropping failure, or **unexplained-missing**. It exits
-non-zero when any unexplained-missing images remain, so it can be used as a gate
-right after extraction.
+logged segmentation/cropping failure, or **unexplained-missing**. The per-image
+segmentation/cropping status is read from the extractor's ``<stem>_summary.csv``
+(which records a status for failed images too -- the npz only holds successfully
+embedded crops). It exits non-zero when any unexplained-missing images remain, so
+it can be used as a gate right after extraction.
 
 Example::
 
@@ -27,6 +29,8 @@ import argparse
 import sys
 from pathlib import Path
 
+import numpy as np
+
 import pandas as pd
 
 from embedding_io import image_key, read_embedding_table
@@ -35,7 +39,7 @@ from embedding_annotation import read_exclude_ids
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# leaf_area_status values that explain why an image legitimately has no embedding
+# summary-CSV status values that explain why an image legitimately has no embedding
 FAILURE_STATUSES = {"failed_cropping", "failed_segmentation"}
 
 # genotype labels that mark an image as legitimately not embedded for a
@@ -64,8 +68,13 @@ def parse_args() -> argparse.Namespace:
                         help="QC exclude list; pass '' to treat every metadata image as expected.")
     parser.add_argument("--image-col", default="image_path",
                         help="Column in the embedding table holding image paths. Default image_path.")
-    parser.add_argument("--status-col", default="leaf_area_status",
-                        help="Metadata column classifying segmentation/cropping outcome.")
+    parser.add_argument("--summary", type=Path, default=None,
+                        help="Per-image extraction summary CSV (the '<embeddings>_summary.csv' written "
+                             "alongside the npz by extract_embeddings.py) that records a segmentation/"
+                             "cropping status for every input image, including failures. Defaults to the "
+                             "embeddings file's sibling '<stem>_summary.csv'.")
+    parser.add_argument("--status-col", default="status",
+                        help="Column in the summary CSV classifying segmentation/cropping outcome.")
     parser.add_argument("--genotype-col", default="genotype",
                         help="Metadata genotype column; null/Mixed/'...(Exclude)' values are "
                              "treated as legitimately not embedded.")
@@ -97,10 +106,23 @@ def main() -> int:
     embedded_keys = set(embeddings[args.image_col].map(image_key))
     metadata["embedded"] = metadata["image_key"].isin(embedded_keys)
 
-    status = metadata.get(args.status_col)
-    metadata["explained_failure"] = (
-        status.isin(FAILURE_STATUSES) if status is not None else False
-    )
+    # Per-image segmentation/cropping status comes from the extractor's summary CSV
+    # (the npz only holds successfully embedded crops, so it cannot explain a
+    # failed/absent image). Default to the summary written next to the embeddings.
+    summary_path = args.summary or args.embeddings.with_name(f"{args.embeddings.stem}_summary.csv")
+    if Path(summary_path).exists():
+        summary = pd.read_csv(summary_path, low_memory=False)
+        if "image_id" not in summary.columns:
+            raise SystemExit(f"{summary_path} lacks an image_id column")
+        if args.status_col not in summary.columns:
+            raise SystemExit(f"{summary_path} lacks status column {args.status_col!r}")
+        summary["image_key"] = summary["image_id"].map(image_key)
+        status_map = summary.drop_duplicates("image_key").set_index("image_key")[args.status_col]
+        metadata["segmentation_status"] = metadata["image_key"].map(status_map)
+    else:
+        print(f"[audit] extraction summary not found; cannot explain failures: {summary_path}")
+        metadata["segmentation_status"] = np.nan
+    metadata["explained_failure"] = metadata["segmentation_status"].isin(FAILURE_STATUSES)
     genotype = metadata.get(args.genotype_col)
     metadata["ungenotyped"] = (
         genotype.map(is_ungenotyped) if genotype is not None else False
@@ -153,7 +175,7 @@ def main() -> int:
 
     if len(unexplained) and args.missing_out:
         args.missing_out.parent.mkdir(parents=True, exist_ok=True)
-        cols = [c for c in ["environment", "image_id", "plotNumber", "genotype", args.status_col]
+        cols = [c for c in ["environment", "image_id", "plotNumber", "genotype", "segmentation_status"]
                 if c in unexplained.columns]
         unexplained[cols].to_csv(args.missing_out, index=False)
         print(f"Wrote {len(unexplained)} unexplained-missing rows to {args.missing_out}")

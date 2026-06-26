@@ -46,7 +46,7 @@ def test_blue_calculation_uses_plot_level_means() -> None:
                 "device": "d1",
                 "genotype": "G1",
                 "plotNumber": 1,
-                "log_estimated_leaf_area": np.nan,
+                "log_mask_pixels": np.nan,
                 "IC0": 10.0,
             }
         )
@@ -58,7 +58,7 @@ def test_blue_calculation_uses_plot_level_means() -> None:
             "device": "d1",
             "genotype": "G1",
             "plotNumber": 2,
-            "log_estimated_leaf_area": np.nan,
+            "log_mask_pixels": np.nan,
             "IC0": 0.0,
         }
     )
@@ -71,12 +71,13 @@ def test_blue_calculation_uses_plot_level_means() -> None:
                 "device": "d1",
                 "genotype": "G2",
                 "plotNumber": plot,
-                "log_estimated_leaf_area": np.nan,
+                "log_mask_pixels": np.nan,
                 "IC0": 0.0,
             }
         )
     data = pd.DataFrame(rows)
-    args = Namespace(environment="Nebraska2025", include_leaf_area=False, winsor_strength=0.0)
+    args = Namespace(environment="Nebraska2025", include_leaf_area=False, winsor_strength=0.0,
+                     spatial_cols="row,column,block")
     blues = calculate_blues.calculate_blue_table(data, ["IC0"], args).set_index("genotype")
     assert blues.loc["G1", "IC0"] == pytest.approx(5.0)
     assert blues.loc["G2", "IC0"] == pytest.approx(0.0)

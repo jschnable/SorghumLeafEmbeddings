@@ -57,7 +57,7 @@ smaller `dinov2_vits14_reg` model and are not part of the current pipeline.
 - `data/provided/examples/images/`: five copied example leaf images.
 - `data/provided/human_disease_scores.csv`: image-level human score columns from the old metadata (`score_A`, `score_B`, `human_score`).
 - `data/provided/exg_ratings.csv`: image-level ExG P20 disease percentages across all three environments.
-- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, `device`, `estimated_leaf_area`, `sam3_n_crops` (legacy column name for crop count), historical `leaf_area_segmentation_method`, and `leaf_area_status`. New embedding extraction uses OpenCV segmentation only. Fill/border/bulk plots that carry no single marker-mappable line use the sentinel genotype `Fill (Exclude)`; these and any `Mixed` plots are skipped by the genotype-level analyses and by `audit_embedding_coverage.py`. `PI564163` is the repeated Nebraska check (~140 plots).
+- `data/provided/field_image_metadata.csv`: image-to-field metadata with `environment`, `block`, `row`, `column`, `genotype`, and `device`. Leaf area and segmentation status are no longer carried here -- they are produced per run by `extract_embeddings.py` (`mask_pixels` and `segmentation_method` in the embedding npz; per-image `status` in the sibling `<stem>_summary.csv`, which `audit_embedding_coverage.py` reads to explain failed/missing images). New embedding extraction uses OpenCV segmentation only. Fill/border/bulk plots that carry no single marker-mappable line use the sentinel genotype `Fill (Exclude)`; these and any `Mixed` plots are skipped by the genotype-level analyses and by `audit_embedding_coverage.py`. `PI564163` is the repeated Nebraska check (~140 plots).
 - `data/provided/leaf_area_image_level.csv`: image-level leaf mask areas split out from `field_image_metadata.csv` for direct use as raw leaf-area covariates.
 - `data/provided/flowering_time_plot_level.csv`: Nebraska 2025 plot-level flowering time observations (`days_to_flower`) with plot, genotype, row, column, and replicate metadata.
 - `data/provided/image_ids_exclude.csv`: image-level QC exclusion list (`environment`, `image_id`, `plotNumber`, `genotype`). These images are skipped by `scripts/extract_embeddings.py` via `--exclude-list`. It is the complement of the per-environment image keep-lists used in the original analysis (un-genotyped border plots, failed segmentation/cropping, and curator-dropped frames).
@@ -71,7 +71,7 @@ lists, for example `SC1166` rather than `SC 1166`.
 
 Metadata provenance:
 
-- `estimated_leaf_area` is the leaf mask pixel area (`mask_pixels`) from the simple OpenCV computer-vision segmentation produced during embedding extraction.
+- Leaf area is the leaf mask pixel area (`mask_pixels`) from the simple OpenCV computer-vision segmentation produced during embedding extraction; it is carried in the embedding npz rather than the field metadata file.
 
 ## Not Included in GitHub
 
@@ -264,8 +264,8 @@ The BLUE step first aggregates crop rows to plot-level means, then uses
 lme4 mixed models with genotype fixed and row/column/device random. Heritability
 and variance partitioning use the same winsorized plot means and lme4 backend,
 with genotype random. Leaf area is included as a scaled fixed covariate whenever
-`estimated_leaf_area` is available. The fitted `lme4` version is recorded in the
-`heritability_method` column.
+`mask_pixels` is available in the embedding table. The fitted `lme4` version is
+recorded in the `heritability_method` column.
 
 BLUEs within one environment:
 

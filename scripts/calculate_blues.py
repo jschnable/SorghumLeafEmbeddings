@@ -22,6 +22,7 @@ from embedding_io import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENVIRONMENTS = ["Nebraska2025", "Alabama2025", "Georgia2025"]
+DEFAULT_EXCLUDE_LIST = REPO_ROOT / "data" / "provided" / "image_ids_exclude.csv"
 
 
 def trait_columns(df: pd.DataFrame, pattern: str) -> list[str]:
@@ -53,6 +54,24 @@ def plot_column(data: pd.DataFrame) -> str:
         if col in data.columns:
             return col
     raise ValueError("Cannot calculate mixed-model heritability without a plotNumber/plot_id column")
+
+
+def read_exclude_keys(exclude_input: Path | str | None) -> set[str]:
+    if not exclude_input:
+        return set()
+    path = Path(exclude_input)
+    if not path.exists():
+        return set()
+    df = pd.read_csv(path, dtype=str)
+    if df.empty:
+        return set()
+    if "image_id" in df.columns:
+        ids = df["image_id"]
+    else:
+        ids = df.iloc[:, 0]
+    ids = ids.astype(str).str.strip()
+    ids = ids[ids.notna() & (ids != "")]
+    return {image_key(v) for v in ids}
 
 
 def interaction_column(df: pd.DataFrame) -> pd.Series:
@@ -102,9 +121,9 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
             flush=True,
         )
         frame["genotype_x_environment"] = interaction_column(frame)
-    frame["log_estimated_leaf_area"] = pd.to_numeric(frame["log_estimated_leaf_area"], errors="coerce")
-    frame.loc[~np.isfinite(frame["log_estimated_leaf_area"]), "log_estimated_leaf_area"] = np.nan
-    leaf_present = bool(frame["log_estimated_leaf_area"].notna().any())
+    frame["log_mask_pixels"] = pd.to_numeric(frame["log_mask_pixels"], errors="coerce")
+    frame.loc[~np.isfinite(frame["log_mask_pixels"]), "log_mask_pixels"] = np.nan
+    leaf_present = bool(frame["log_mask_pixels"].notna().any())
 
     plot_col = plot_column(frame)
     group_cols = ["environment", "genotype", plot_col]
@@ -116,7 +135,7 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
     group_cols = list(dict.fromkeys(group_cols))
     value_cols = [*traits]
     if leaf_present:
-        value_cols.append("log_estimated_leaf_area")
+        value_cols.append("log_mask_pixels")
     plot_means = (
         frame[group_cols + value_cols]
         .dropna(subset=[*group_cols, *traits])
@@ -132,15 +151,15 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
         # to the (1|environment) term) and given an environment-specific slope (nested),
         # i.e. environment:leaf_area. This keeps the leaf-area adjustment from soaking up
         # the environment main effect.
-        grp = plot_means.groupby("environment")["log_estimated_leaf_area"]
-        within = (plot_means["log_estimated_leaf_area"] - grp.transform("mean")) / grp.transform("std")
+        grp = plot_means.groupby("environment")["log_mask_pixels"]
+        within = (plot_means["log_mask_pixels"] - grp.transform("mean")) / grp.transform("std")
         for environment in sorted(plot_means["environment"].astype(str).unique()):
             col = f"leaf_area_scaled_{environment}"
             plot_means[col] = np.where(plot_means["environment"].astype(str) == environment, within, 0.0)
             fixed_covariates.append(col)
     elif leaf_present:
-        plot_means["log_estimated_leaf_area_scaled"] = zscore_column(plot_means["log_estimated_leaf_area"])
-        fixed_covariates = ["log_estimated_leaf_area_scaled"]
+        plot_means["log_mask_pixels_scaled"] = zscore_column(plot_means["log_mask_pixels"])
+        fixed_covariates = ["log_mask_pixels_scaled"]
     return plot_means, fixed_covariates
 
 
@@ -595,13 +614,17 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     scores = read_embedding_table(args.scores)
     traits = trait_columns(scores, args.trait_regex)
     assert_fit_split_provenance(scores, args.scores, traits)
+    exclude_keys = read_exclude_keys(args.exclude_list)
     spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip()]
     if args.metadata_optional and {"genotype", *spatial_cols}.issubset(scores.columns):
         data = scores.copy()
+        data["image_key"] = build_join_key(data, args.image_col, args.scores)
         if args.environment != "all":
             env_col = "environment" if "environment" in data.columns else "env"
             if env_col in data.columns:
                 data = data.loc[data[env_col].astype(str).eq(args.environment)].copy()
+        if exclude_keys:
+            data = data.loc[~data["image_key"].isin(exclude_keys)].copy()
         data = data.dropna(subset=["genotype", *spatial_cols, *traits]).copy()
         data["genotype"] = data["genotype"].astype(str).str.replace(" ", "", regex=False)
         if "environment" not in data.columns:
@@ -612,8 +635,8 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
             data["column"] = data[spatial_cols[-1]]
         if "device" not in data.columns:
             raise ValueError("--metadata-optional requires a device column")
-        if "log_estimated_leaf_area" not in data.columns:
-            data["log_estimated_leaf_area"] = np.nan
+        if "log_mask_pixels" not in data.columns:
+            data["log_mask_pixels"] = log_mask_pixels(data)
         return data, traits
     scores = scores.copy()
     scores["image_key"] = build_join_key(scores, args.image_col, args.scores)
@@ -622,6 +645,8 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     data = scores.merge(metadata, on="image_key", how="left", suffixes=("", "_meta"))
     warn_unmatched_metadata(scores, data["environment"], args.scores)
     data = prefer_metadata_columns(data, ["genotype", "row", "column", "block", "device", "plotNumber"])
+    if exclude_keys:
+        data = data.loc[~data["image_key"].isin(exclude_keys)].copy()
     if args.environment != "all":
         data = data.loc[data["environment"].eq(args.environment)].copy()
     spatial_cols = [c.strip() for c in args.spatial_cols.split(",") if c.strip() and c.strip() in data.columns]
@@ -630,12 +655,20 @@ def load_data(args: argparse.Namespace) -> tuple[pd.DataFrame, list[str]]:
     data["row"] = data["environment"].astype(str) + "_" + data["row"].astype(str)
     data["column"] = data["environment"].astype(str) + "_" + data["column"].astype(str)
     data["device"] = data["environment"].astype(str) + "_" + data["device"].astype(str)
-    if "estimated_leaf_area" in data:
-        leaf_area = pd.to_numeric(data["estimated_leaf_area"], errors="coerce")
-        data["log_estimated_leaf_area"] = np.where(leaf_area > 0, np.log(leaf_area), np.nan)
-    else:
-        data["log_estimated_leaf_area"] = np.nan
+    data["log_mask_pixels"] = log_mask_pixels(data)
     return data, traits
+
+
+def log_mask_pixels(data: pd.DataFrame) -> pd.Series:
+    """Log of the per-crop leaf mask pixel area carried in the embedding table.
+
+    ``mask_pixels`` comes from the OpenCV segmentation in the one-step extractor
+    (``extract_embeddings.py``), so the leaf-area covariate is read straight off
+    the embedding npz rather than copied from a prior run's metadata file."""
+    if "mask_pixels" not in data.columns:
+        return pd.Series(np.nan, index=data.index)
+    area = pd.to_numeric(data["mask_pixels"], errors="coerce")
+    return pd.Series(np.where(area > 0, np.log(area), np.nan), index=data.index)
 
 
 def calculate_blue_table(data: pd.DataFrame, traits: list[str], args: argparse.Namespace) -> pd.DataFrame:
@@ -733,6 +766,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--verbose-summaries", action="store_true")
     parser.add_argument("--spatial-cols", default="row,column,block")
+    parser.add_argument(
+        "--exclude-list",
+        type=Path,
+        default=DEFAULT_EXCLUDE_LIST,
+        help="CSV file of image IDs to exclude before fitting."
+    )
     parser.add_argument(
         "--metadata-optional",
         action="store_true",
