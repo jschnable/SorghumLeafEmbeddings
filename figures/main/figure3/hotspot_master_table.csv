@@ -1,0 +1,13 @@
+chrom_pos_top_marker,sam3_hits,dino2_hits,disease,disease_stats,inferred_phenotype,candidate_gene_model,function_phrase_our_db
+"2:52,490,664",26,4,Y,"hum 7e-4, exg 2e-4",cuticle / gloss + disease,Sobic.002G164900 (WDL1/GDSL),GDSL esterase/lipase for cuticle formation
+"4:4,724,594",14,3,Y,"hum 5e-4, exg 5e-5",disease severity,Sobic.004G058000 (VQ),Regulator of jasmonate-dependent defense signaling
+"4:60,556,616",10,1,N,"hum 0.21, exg 0.66",unresolved (abstract texture),"Sobic.004G230800 (UGT, weak)",UDP-glycosyltransferase contributing to drought tolerance
+"4:64,959,396",24,5,Y*,"hum 3e-4, exg 0.02",pigment / tannin (Tan1); human signal maybe pigment-confound,Sobic.004G280800 (Tan1),WD40 regulator of grain tannin and anthocyanin biosynthesis
+"4:65,447,981",22,5,Y,hum 3e-3 (survives yellowness cond.); exg null,midrib yellowness + disease (cell wall),Sobic.004G286700,GDSL-type esterase/lipase for xylan deacetylation
+"4:69,421,678",19,4,Y,"hum 2e-4, exg 4e-6",disease severity,unresolved,(no canonical defense gene in window)
+"6:43,748,037",50,7,N,"hum 0.64, exg 0.21",dwarfing / plant height (Dw2),Sobic.006G067700 (Dw2),AGC kinase regulating stem internode elongation
+"6:52,281,164",13,32,N,"hum 0.93, exg 0.50",midrib / juiciness (Dry),Sobic.006G147400 (Dry),NAC transcription factor regulating stem PCD and juiciness
+"6:58,476,610",25,12,N,"hum 0.15, exg 0.93",pigment - 3-deoxyanthocyanidin (purple/tan) response,P locus - Sobic.006G226800 (FNR) + Sobic.006G227300 (ANR),flavanone 4-reductase for phytoalexin synthesis; anthocyanidin reductase for proanthocyanidin biosynthesis
+"9:1,768,703",12,6,Y,"hum 4e-3, exg 2e-6",disease (visible lesions),Sobic.009G019100,Leaf-biased LysM receptor-like kinase
+"9:60,857,595",81,116,N,"hum 0.93, exg 0.04",leaf size / architecture (Dw1 / dwarf1),Sobic.009G229801 (Dw1),Positive regulator of brassinosteroid signaling promoting internode growth
+"9:62,301,540",24,27,Y,"hum 0.03, exg 2e-6",disease severity,Sobic.009G249900 (JAR1),jasmonate-amino-acid ligase in defense and reproduction

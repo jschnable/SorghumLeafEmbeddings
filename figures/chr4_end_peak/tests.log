@@ -1,0 +1,9 @@
+[tests] loading genotype ...
+[Cache] Loading binary cache for data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz...
+[tests] T2: large-effect variants -> disease
+[tests]     PCA+LOCO for n=561
+[tests]     PCA+LOCO for n=895
+[tests] T4: cis-eQTL of dhurrin-upstream & main-peak markers -> candidate expression
+[tests]     PCA+LOCO for n=750
+[tests] T3: candidate expression -> disease (Spearman + PC-partial)
+[tests] DONE — wrote chr4_tests_results.json

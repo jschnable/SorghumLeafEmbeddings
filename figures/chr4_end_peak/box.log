@@ -1,0 +1,44 @@
+[Cache] Loading binary cache for data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz...
+[box]   PCA+LOCO n=561
+[box]   PCA+LOCO n=895
+[box]   PCA+LOCO n=750
+[box] mlm p-values:
+{
+ "peak_human": {
+  "n": 561,
+  "effect": 0.28435110720172146,
+  "se": 0.07829970129225311,
+  "p": 0.0003447379891918089
+ },
+ "peak_ExG": {
+  "n": 895,
+  "effect": 0.3125641039924973,
+  "se": 0.0666426986826255,
+  "p": 4.226492549510204e-06
+ },
+ "miss_human": {
+  "n": 561,
+  "effect": 0.29885654029011366,
+  "se": 0.08548900818074304,
+  "p": 0.0005104161472282487
+ },
+ "miss_ExG": {
+  "n": 895,
+  "effect": 0.25760782608577926,
+  "se": 0.06777674243026909,
+  "p": 0.00019981985027792842
+ },
+ "peak_expr": {
+  "n": 750,
+  "effect": 0.8759735694484183,
+  "se": 0.36089291297653747,
+  "p": 0.015450897285758188
+ },
+ "miss_expr": {
+  "n": 750,
+  "effect": 0.5378735072242729,
+  "se": 0.3655302684286093,
+  "p": 0.1415825140585549
+ }
+}
+[box] wrote box_data.csv

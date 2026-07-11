@@ -1,0 +1,10 @@
+[compute] loading genotype VCF ...
+[Cache] Loading binary cache for data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz...
+[compute] region markers Chr4:69236000-69452000: 1255
+[compute] embedding set n=891; PCA + cached LOCO
+[compute] wrote region_gwas.csv (23845 rows)
+[compute] computing lead-vs-all LD ...
+[compute] wrote ld_track.csv (1255 markers)
+[compute] wrote gene_models.csv (25 genes)
+[compute] wrote gene_exons.csv (210 segments)
+[compute] DONE

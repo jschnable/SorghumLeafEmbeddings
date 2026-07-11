@@ -1,0 +1,55 @@
+[compute] loading genotype VCF (heavy)...
+[Cache] Loading binary cache for data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz...
+[compute] 925 individuals x 6422975 markers
+[compute] region markers Chr9:1650000-1850000: 3594
+[compute]   [peak->human_score] n=561
+[compute]     PCA + LOCO recompute for n=561 sample set
+[compute]   [peak->disease_exg] n=895
+[compute]     PCA + LOCO recompute for n=895 sample set
+[compute]   [peak->G019100_expr] n=750
+[compute]     PCA + LOCO recompute for n=750 sample set
+[compute]   [LOF->human_score] n=561
+[compute]   [LOF->disease_exg] n=895
+[compute] MLM p-values: {
+ "B_peak_human": {
+  "label": "peak->human_score",
+  "n": 561,
+  "effect": 0.20393348592586039,
+  "se": 0.07173403936130623,
+  "p": 0.004635239463633626
+ },
+ "B_peak_disexg": {
+  "label": "peak->disease_exg",
+  "n": 895,
+  "effect": 0.256016969187062,
+  "se": 0.05200020579363022,
+  "p": 2.012230936323305e-06
+ },
+ "C_peak_expr": {
+  "label": "peak->G019100_expr",
+  "n": 750,
+  "effect": -0.9653650017447957,
+  "se": 0.11008447970382172,
+  "p": 1.2126044588082974e-17
+ },
+ "D_lof_human": {
+  "label": "LOF->human_score",
+  "n": 561,
+  "effect": 0.1550021211068475,
+  "se": 0.07870121603287643,
+  "p": 0.04939340485252601
+ },
+ "D_lof_disexg": {
+  "label": "LOF->disease_exg",
+  "n": 895,
+  "effect": 0.1690482088775264,
+  "se": 0.0644772255803483,
+  "p": 0.008895629953783353
+ }
+}
+[compute] panel A embedding set n=891; PCA + cached LOCO
+[compute] using cached LOCO (n=891)
+[compute] wrote region_gwas.csv (43128 rows)
+[compute] wrote gene_models.csv (24 genes)
+[compute] wrote box_data.csv
+[compute] DONE

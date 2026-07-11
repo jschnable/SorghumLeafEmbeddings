@@ -1,0 +1,38 @@
+# Generated analysis artifacts live in data/generatable/ and are not committed
+# (except the README documenting what each generatable file is).
+data/generatable/*
+!data/generatable/README.md
+
+# Large external-source assets (raw images, SAM3/DINOv2 weights, marker VCF/PLINK)
+# are obtained separately and must never be committed. Only the README files that
+# document where to get each asset are tracked.
+data/externalsourcerequired/**
+data/externalsourcerequired/**/**
+!data/externalsourcerequired/**/
+!data/externalsourcerequired/README.md
+!data/externalsourcerequired/**/README.txt
+
+# Large embedding / model arrays (not paper figure peak slices)
+*.npz
+!figures/**/*.npz
+__pycache__/
+*.py[cod]
+.~lock.*
+PEER_REVIEW.md
+.DS_Store
+.ipynb_checkpoints/
+
+
+# Figure intermediates (source photos, full-res transparent masks/crops, dual PDF exports)
+# Canonical figures: PNG at max 6.5in @ 300dpi; plus hand-edited SVG when present.
+figures/**/*_segmented.png
+figures/**/*LeafPhoto*.jpg
+figures/**/*LeafPhoto*.JPG
+figures/supplemental/rf_exg/rf_exg_scatterplot.svg
+figures/**/*_from_code.png
+figures/**/*_0.png
+figures/**/*_1.png
+figures/main/figure2/rf_accuracy.png
+figures/main/figure2/sam3_cor.png
+figures/main/figure3/figure3_from_code.png
+figures/lysm_rlk_story/lysm_rlk_story_v1_deprecated.png
