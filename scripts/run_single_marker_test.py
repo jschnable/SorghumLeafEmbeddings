@@ -28,6 +28,10 @@ from panicle.matrix.pca import PANICLE_PCA
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_GENOTYPE = REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_925genotypes_filtered_v3.vcf.gz"
 
+ENVIRONMENT_GROUP_COLUMN = "environment"
+COMMON_GENOTYPE_TARGET_ENV = "Nebraska2025"
+COMMON_GENOTYPE_GROUP_LABEL = "Nebraska2025-Common"
+
 
 def now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
@@ -296,12 +300,30 @@ def main() -> None:
     else:
         levels = [None]
 
-    rows = []
+    groups: list[tuple[str, pd.DataFrame]] = []
     for level in levels:
         if level is None:
-            label, sub = "all", pheno
+            groups.append(("all", pheno))
         else:
-            label, sub = level, pheno[pheno[args.group_column].astype(str) == level]
+            groups.append((level, pheno[pheno[args.group_column].astype(str) == level]))
+
+    if args.group_column == ENVIRONMENT_GROUP_COLUMN and COMMON_GENOTYPE_TARGET_ENV in levels:
+        common_genotypes = set.intersection(
+            *[
+                set(pheno.loc[pheno[args.group_column].astype(str) == level, args.genotype_column])
+                for level in levels
+            ]
+        )
+        target_sub = pheno[pheno[args.group_column].astype(str) == COMMON_GENOTYPE_TARGET_ENV]
+        common_sub = target_sub[target_sub[args.genotype_column].isin(common_genotypes)]
+        log(
+            f"{COMMON_GENOTYPE_TARGET_ENV} genotypes common to all {len(levels)} "
+            f"{args.group_column} levels: {len(common_genotypes)}"
+        )
+        groups.append((COMMON_GENOTYPE_GROUP_LABEL, common_sub))
+
+    rows = []
+    for label, sub in groups:
         log(f"Testing group {label!r}: {len(sub)} rows")
         rows.append(
             run_single_marker(
@@ -333,7 +355,7 @@ def main() -> None:
         "selected_marker": marker_meta,
         "genotype": str(args.genotype),
         "genotype_format": genotype_format,
-        "n_groups": len(levels),
+        "n_groups": len(groups),
         "n_tested": int((out["status"] == "tested").sum()),
         "n_pcs": args.n_pcs,
         "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs as covariates, forced LRT refinement",
