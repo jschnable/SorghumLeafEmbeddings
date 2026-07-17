@@ -217,7 +217,7 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
   return(line_plot)
 }
 
-plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'red'), trait_name = NULL, marker_name = NULL)
+plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'red'), trait_name = NULL, marker_name = NULL, pvals = NULL)
 {
   trait_str <- as.character(deparse(substitute(trait)))
   marker_str <- as.character(deparse(substitute(marker)))
@@ -225,36 +225,37 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   if(is.null(marker_name)) {trait_name <- marker_str}
   .data <- .data %>% filter(!is.na({{ marker }}) & !is.na({{ trait }}))
   present_environments <- levels(.data[['environment']])[levels(.data[['environment']]) %in% unique(as.character(.data[['environment']]))]
-  ref_environment_effect <- wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')),
-                                        data = .data, subset = .data[['environment']]==present_environments[1], conf.int = TRUE)$estimate
+  
+  if(is.null(pvals))
+  {
+    for(e in present_environments)
+    {
+      pvals <- list(c(pvals, 
+                      e = wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')), 
+                                      data = .data, 
+                                      subset = .data[['environment']]==e, 
+                                      conf.int = TRUE)$p.value))
+    }
+  }
+
   significance <- c()
   for(e in present_environments)
   {
-    test <- wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')), data = .data, subset = .data[['environment']]==e, conf.int = TRUE)
+    p <- pvals[[e]]
     
-    if(test$p.value < 0.0001)
+    if(p < 0.0001)
     {
       significance <- c(significance, '****')
-      if(test$estimate*ref_environment_effect < 0)
-      {
-        print(str_c('Warning: ', deparse(substitute(marker)), 'has a highly significant effect on ', 
-                    deparse(substitute(trait)), 'in the opposite direction of the reference environment.'))
-      }
     }
-    else if(test$p.value < 0.001)
+    else if(p < 0.001)
     {
       significance <- c(significance, '***')
-      if(test$estimate*ref_environment_effect < 0)
-      {
-        print(str_c('Warning: ', deparse(substitute(marker)), 'has a highly significant effect on ', 
-                    deparse(substitute(trait)), 'in the opposite direction of the reference environment.'))
-      }
     }
-    else if(test$p.value < 0.01)
+    else if(p < 0.01)
     {
       significance <- c(significance, '**')
     }
-    else if(test$p.value < 0.05)
+    else if(p < 0.05)
     {
       significance <- c(significance, '*')
     }
@@ -268,6 +269,10 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
     group_by(environment, {{ marker }}) %>% 
     summarise(mean = mean({{ trait }}, na.rm = TRUE),
               se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()))
+  df %>% 
+    select(environment, {{ marker }}, n) %>%
+    arrange(environment, {{ marker }}) %>% 
+    print()
   
   plot <- ggplot(df, aes(environment, mean, fill = {{ marker }})) + 
     geom_col(position = position_dodge(width = 0.9)) + 
@@ -373,6 +378,8 @@ blues_all <- read_csv('blues_allsites_selected_embeddings.csv') %>%
                               labels = c('NE', 'NE-C', 'AL', 'GA'))) %>% 
   left_join(vcf, join_by(genotype), relationship = 'many-to-one')
 
+blues_ne <- filter(blues_all, environment=='NE')
+
 p_locus_hist <- ggplot(blues_ne, aes(embedding_mean_30)) +
   geom_histogram(fill = paletteer_d("RColorBrewer::Paired")[10]) + 
   annotate('point', x = c(-0.3316678, 0.1221007), y = rep(0, 2), shape = 17, color = 'blue', size = 5) +
@@ -384,12 +391,14 @@ p_locus_hist <- ggplot(blues_ne, aes(embedding_mean_30)) +
   theme_use
 p_locus_hist
 
+p_locus_embedding30_panicle <- read_csv('plocus_embedding_mean_30_significance.csv')[1:4, ] %>% 
+  mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
+  select(environment, p_value) %>% 
+  deframe()
 p_locus_stability <- plotAssociationStability(blues_all, embedding_mean_30, `6:58476610:G:A`, colors = paletteer_d("RColorBrewer::Paired")[c(10, 9)], 
-                                              trait_name = 'Embedding 30 (Mean)', marker_name = 'P Locus Peak Marker\n6:58476610')
+                                              trait_name = 'Embedding 30 (Mean)', marker_name = 'P Locus Peak Marker\n6:58476610', 
+                                              pvals = p_locus_embedding30_panicle)
 p_locus_stability
-
-p_locus_scores <- plotAssociationStability(human_scores, human_score, `6:58476610:G:A`, colors = paletteer_d("RColorBrewer::Paired")[c(10, 9)], trait_name = 'Human Disease\nSeverity Score', marker_name = 'P Locus Peak Marker')
-p_locus_scores
 
 tan1_hist <- ggplot(blues_ne, aes(embedding_std_897)) + 
   geom_histogram(fill = paletteer_d('MoMAColors::Abbott')[3]) + 

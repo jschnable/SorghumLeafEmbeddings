@@ -1,0 +1,132 @@
+library(tidyverse)
+library(paletteer)
+library(cowplot)
+library(vcfR)
+theme_use <- theme_minimal() +
+  theme(axis.text.x = element_text(size = 9, color = 'black', margin = margin(0, 0, 0, 0), 
+                                   vjust = 0.5, hjust = 0.5),
+        axis.text.y = element_text(size = 9, color = 'black', vjust = 0.5, hjust = 0.5),
+        legend.text = element_text(size = 9, color = 'black', vjust = 0.5, hjust = 0.5),
+        plot.title = element_text(size = 9, color = 'black', vjust = 0, hjust = 0.5),
+        plot.subtitle = element_text(size = 9, color = 'black', vjust = 0, hjust = 0.5),
+        text = element_text(size = 9, color = 'black'),
+        legend.position = 'top',
+        line = element_line(color = 'black', linewidth = 1),
+        axis.ticks = element_line(color = 'black', linewidth = 0.5),
+        axis.line.x.bottom = element_line(color = 'black', linewidth = 0.5),
+        axis.line.y.left = element_line(color = 'black', linewidth = 0.5),
+        panel.grid = element_blank(), 
+        panel.background = element_blank())
+
+plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'red'), trait_name = NULL, marker_name = NULL, pvals = NULL)
+{
+  trait_str <- as.character(deparse(substitute(trait)))
+  marker_str <- as.character(deparse(substitute(marker)))
+  if(is.null(trait_name)) {trait_name <- trait_str}
+  if(is.null(marker_name)) {trait_name <- marker_str}
+  .data <- .data %>% filter(!is.na({{ marker }}) & !is.na({{ trait }}))
+  present_environments <- levels(.data[['environment']])[levels(.data[['environment']]) %in% unique(as.character(.data[['environment']]))]
+  
+  if(is.null(pvals))
+  {
+    for(e in present_environments)
+    {
+      pvals <- list(c(pvals, 
+                      e = wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')), 
+                                      data = .data, 
+                                      subset = .data[['environment']]==e, 
+                                      conf.int = TRUE)$p.value))
+    }
+  }
+  
+  significance <- c()
+  for(e in present_environments)
+  {
+    p <- pvals[[e]]
+    
+    if(p < 0.0001)
+    {
+      significance <- c(significance, '****')
+    }
+    else if(p < 0.001)
+    {
+      significance <- c(significance, '***')
+    }
+    else if(p < 0.01)
+    {
+      significance <- c(significance, '**')
+    }
+    else if(p < 0.05)
+    {
+      significance <- c(significance, '*')
+    }
+    else
+    {
+      significance <- c(significance, '')
+    }
+  }
+  
+  df <- .data %>%
+    group_by(environment, {{ marker }}) %>% 
+    summarise(mean = mean({{ trait }}, na.rm = TRUE),
+              se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()), 
+              n = n())
+  df %>% 
+    select(environment, {{ marker }}, n) %>%
+    arrange(environment, {{ marker }}) %>% 
+    print()
+  
+  plot <- ggplot(df, aes(environment, mean, fill = {{ marker }})) + 
+    geom_col(position = position_dodge(width = 0.9)) + 
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), 
+                  position = position_dodge(width = 0.9), 
+                  width = 0.25) + 
+    annotate(geom = 'text',
+             x = present_environments,
+             y = max(df$mean, na.rm = TRUE), 
+             label = significance, 
+             size = 9, 
+             size.unit = 'pt') + 
+    scale_x_discrete(name = NULL, 
+                     expand = c(0, 0)) + 
+    scale_y_continuous(name = trait_name, 
+                       expand = c(0, 0)) +
+    scale_fill_manual(name = marker_name,
+                      values = colors, 
+                      labels = str_split(deparse(substitute(marker)), ':')[[1]][3:4]) + 
+    theme_use + 
+    theme(axis.text.x = element_text(size = 9, color = 'black', margin = margin(0, 0, 0, 0), 
+                                     vjust = 0.5, hjust = 0.5, angle = 90))
+  return(plot)
+}
+
+vcf_subset <- read.vcfR('subset_snps.recode.vcf')
+vcf_gt <- matrix(vcf_subset@gt, nrow = dim(vcf_subset@fix)[1])
+colnames(vcf_gt) <- colnames(vcf_subset@gt)
+vcf_gt <- vcf_gt[, 2:ncol(vcf_gt)]
+vcf_gt[vcf_gt=='1|1'] <- '1/1'
+vcf_gt[vcf_gt=='0|0'] <- '0/0'
+vcf_gt[vcf_gt =="0|1"] <- NA
+vcf_gt[vcf_gt =="0/1"] <- NA
+vcf <- as_tibble(t(vcf_gt), rownames = 'genotype')
+colnames(vcf) <- c('genotype', 
+                   str_c(vcf_subset@fix[, 'CHROM'], vcf_subset@fix[, 'POS'], vcf_subset@fix[, 'REF'], vcf_subset@fix[, 'ALT'], sep = ":"))
+
+human_scores <- read_csv('human_disease_scores.csv')
+genotypes_common <- read_csv('genotypes_common.csv')
+nec_scores <- filter(human_scores, environment=='Nebraska2025' & (genotype %in% genotypes_common)) %>% 
+  mutate(environment = 'Nebraska2025-Common')
+human_scores <- bind_rows(human_scores, nec_scores) %>% 
+  mutate(environment = factor(environment, 
+                              levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'), 
+                              labels = c('NE', 'NE-C', 'AL', 'GA'))) %>% 
+  left_join(vcf, join_by(genotype), relationship = 'many-to-one')
+
+p_locus_scores_panicle <- read_csv('plocus_score_significance.csv') %>% 
+  mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
+  select(environment, p_value) %>% 
+  deframe()
+
+p_locus_scores <- plotAssociationStability(human_scores, human_score, `6:58476610:G:A`, colors = paletteer_d("RColorBrewer::Paired")[c(10, 9)], trait_name = 'Human Disease\nSeverity Score', marker_name = 'P Locus Peak Marker', pvals = p_locus_scores_panicle)
+p_locus_scores
+ggsave('p_locus_scores.png', plot = p_locus_scores, width = 3, height = 3)
