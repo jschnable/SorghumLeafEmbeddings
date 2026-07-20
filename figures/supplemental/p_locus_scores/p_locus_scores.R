@@ -29,22 +29,26 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   
   if(is.null(pvals))
   {
+    pvals <- list()
     for(e in present_environments)
     {
-      pvals <- list(c(pvals, 
-                      e = wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')), 
-                                      data = .data, 
-                                      subset = .data[['environment']]==e, 
-                                      conf.int = TRUE)$p.value))
+      pvals[[e]] <- wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')),
+                                data = .data,
+                                subset = .data[['environment']]==e,
+                                conf.int = TRUE)$p.value
     }
   }
-  
+
   significance <- c()
   for(e in present_environments)
   {
     p <- pvals[[e]]
-    
-    if(p < 0.0001)
+
+    if(is.na(p))
+    {
+      significance <- c(significance, '')
+    }
+    else if(p < 0.0001)
     {
       significance <- c(significance, '****')
     }

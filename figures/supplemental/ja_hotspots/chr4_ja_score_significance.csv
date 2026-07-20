@@ -1,0 +1,5 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+Alabama2025,4:4724594:G:C,4,4724594,G,C,human_score,132,132,131,0,1,2.602651515151515,0.7770934499719366,,,,,,,skipped,n_alt_homozygote < 3
+Georgia2025,4:4724594:G:C,4,4724594,G,C,human_score,147,147,141,1,5,2.7090419501133787,0.7691803497046108,0.25685967281773087,0.18124033691593974,0.15863660715648345,0.3339394628533776,0.6678789257067552,increases,tested,
+Nebraska2025,4:4724594:G:C,4,4724594,G,C,human_score,561,561,534,3,24,1.9280897207367795,0.6463920139830311,0.21688376820223706,0.06610237420604351,0.0010993484272294434,0.3355297768389982,0.6710595536779964,increases,tested,
+Nebraska2025-Common,4:4724594:G:C,4,4724594,G,C,human_score,42,42,42,0,0,1.6989087301587302,0.4815589518192176,,,,,,,skipped,n_alt_homozygote < 3

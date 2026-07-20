@@ -1,8 +1,9 @@
 library(tidyverse)
 library(reticulate)
 library(jsonlite)
+library(VariantAnnotation)
 use_condaenv("jupyterlab-debugger-arm", required = TRUE)
-np <- import("numpy")
+np <- reticulate::import("numpy")
 
 sam3_npz <- np$load('data/generatable/embeddings/sam3_all3_embeddings_2016crop_float32.npz')
 sam3_embeddings <- as_tibble(sam3_npz$f[['features']])
@@ -123,7 +124,7 @@ blues_nec$environment <- 'Nebraska2025-Common'
 
 blues_all <- bind_rows(blues_ne, blues_nec, blues_al, blues_ga)
 
-blues_fig3 <- select(blues_all, c(environment, genotype, embedding_mean_30, embedding_std_897))
+blues_fig3 <- dplyr::select(blues_all, c(environment, genotype, embedding_mean_30, embedding_std_897))
 write_csv(blues_fig3, 'figures/main/figure3/blues_allsites_selected_embeddings.csv')
 
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
@@ -216,3 +217,180 @@ all_hotspot_embeddings_cor <- cor(ne_embeddings[, embedding_affinity_order], met
 all_hotspot_cor_export <- as_tibble(all_hotspot_embeddings_cor, rownames = 'embedding')
 write_csv(all_hotspot_cor_export, 'figures/supplemental/embedding_cor_hotspot_affinity/all_hotspot_embeddings_correlation_matrix.csv')
 write_csv(hotspot_groups, 'figures/supplemental/embedding_cor_hotspot_affinity/hotspot_groups.csv')
+
+
+# ---- figures/supplemental/ja_hotspots ----
+# Two jasmonate-pathway disease hotspots: chr4:4.7-4.8 Mb (VQ gene Sobic.004G058000,
+# hotspot '4a') and chr9:61.9-62.4 Mb (JAR1 gene Sobic.009G249900, hotspot '9c'). Region
+# GWAS / LD / gene-model inputs were already computed by the per-locus compute_*_peak.py
+# scripts in figures/chr4_lutein_peak and figures/chr9_62_peak; this block only converts/
+# copies what's needed for a ggplot figure into the figure directory, and pulls the two
+# lead-marker genotype calls directly from the tabix-indexed project VCF.
+ja_dir <- 'figures/supplemental/ja_hotspots'
+
+convert_region_gwas <- function(npz_path, csv_path) {
+  z <- np$load(npz_path, allow_pickle = TRUE)
+  traits <- as.character(z$f[['traits']])
+  trait_idx <- as.integer(z$f[['trait_idx']]) + 1L
+  tibble(trait = traits[trait_idx],
+        POS = as.integer(z$f[['POS']]),
+        p_value = as.numeric(z$f[['p_value']])) %>%
+    write_csv(csv_path)
+}
+convert_region_gwas('figures/chr4_lutein_peak/region_gwas.npz', file.path(ja_dir, 'chr4_region_gwas.csv'))
+convert_region_gwas('figures/chr9_62_peak/region_gwas.npz', file.path(ja_dir, 'chr9_region_gwas.csv'))
+
+for(f in c('ld_track.csv', 'gene_models.csv', 'gene_exons.csv', 'meta.json'))
+{
+  file.copy(file.path('figures/chr4_lutein_peak', f), file.path(ja_dir, str_c('chr4_', f)), overwrite = TRUE)
+  file.copy(file.path('figures/chr9_62_peak', f), file.path(ja_dir, str_c('chr9_', f)), overwrite = TRUE)
+}
+
+# lead-marker genotype calls (chr4:4,724,594 G>C; chr9:62,301,540 T>A), read directly from
+# the tabix-indexed VCF via VariantAnnotation (no bcftools/vcftools dependency)
+vcf_path <- 'data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz'
+lead_markers <- GRanges(seqnames = c('4', '9'), ranges = IRanges(start = c(4724594, 62301540), width = 1))
+lead_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = lead_markers, geno = 'GT'))
+lead_gt <- geno(lead_vcf)$GT
+lead_gt[lead_gt %in% c('0|0')] <- '0/0'
+lead_gt[lead_gt %in% c('1|1')] <- '1/1'
+lead_gt[!(lead_gt %in% c('0/0', '1/1'))] <- NA  # drop hets + missing, as done elsewhere in this repo
+fx <- rowRanges(lead_vcf)
+marker_names <- str_c(as.character(seqnames(fx)), start(fx), as.character(fx$REF),
+                      sapply(fx$ALT, function(a) as.character(a)[1]), sep = ':')
+lead_geno <- as_tibble(t(lead_gt), rownames = 'genotype')
+colnames(lead_geno) <- c('genotype', marker_names)
+write_csv(lead_geno, file.path(ja_dir, 'lead_marker_genotypes.csv'))
+
+# human disease scores (raw NE/AL/GA + common-genotype list, as reused in figure3/p_locus_scores)
+file.copy('data/provided/human_disease_scores.csv', file.path(ja_dir, 'human_disease_scores.csv'), overwrite = TRUE)
+file.copy('figures/main/figure3/genotypes_common.csv', file.path(ja_dir, 'genotypes_common.csv'), overwrite = TRUE)
+
+# candidate-gene leaf expression (log2 TPM+1) by lead-marker allele, for the panel-4
+# boxplots. NE2021 field-trial samples only (experiment=='SG2021'; see
+# data/externalsourcerequired/tpm/sorghum_rnaseq_methods.md -- SG2021 is entirely leaf
+# tissue, 736 samples / 729 genotypes).
+expr_dir <- 'data/externalsourcerequired/tpm'
+candidate_genes <- c(chr4 = 'Sobic.004G058000', chr9 = 'Sobic.009G249900')
+meta_expr <- read_tsv(file.path(expr_dir, 'sample_metadata.tsv')) %>%
+  filter(experiment == 'SG2021') %>%
+  dplyr::select(sample_id, genotype)  # VariantAnnotation (loaded above) masks dplyr::select
+tpm <- read_csv(file.path(expr_dir, 'gene_tpm.csv.gz'))
+gene_id_col <- names(tpm)[1]
+for(nm in names(candidate_genes))
+{
+  gid <- candidate_genes[[nm]]
+  row <- filter(tpm, .data[[gene_id_col]] == gid)
+  vals <- row %>% dplyr::select(-1) %>% pivot_longer(everything(), names_to = 'sample_id', values_to = 'tpm')
+  expr_geno <- meta_expr %>%
+    left_join(vals, by = 'sample_id') %>%
+    drop_na(tpm) %>%
+    group_by(genotype) %>%
+    summarise(tpm = mean(tpm))
+  write_csv(expr_geno, file.path(ja_dir, str_c(nm, '_candidate_expression.csv')))
+}
+
+
+# ---- figures/supplemental/gdsl_hotspots ----
+# Two GDSL-esterase/lipase leaf-embedding hotspots: chr2:52.3-52.7 Mb (cuticle-wax candidate
+# Sobic.002G164900 / WDL1, hotspot '2') and chr4:65.4-65.5 Mb (cell-wall acetyl-xylan
+# esterase candidate Sobic.004G286700, hotspot '4d'; see hotspot_candidate_gene_analysis.md
+# section 12 for the GGPPS->GDSL candidate reassignment writeup). Region GWAS / LD /
+# gene-model inputs were already computed by figures/chr2_gloss_peak/compute_chr2_peak.py and
+# figures/chr4_ggpps_peak/compute_chr4b_peak.py (the latter directory name predates the GDSL
+# reassignment, but its region data is for the correct 65.4 Mb locus); this block only
+# converts/copies what's needed for a ggplot figure into the figure directory.
+gdsl_dir <- 'figures/supplemental/gdsl_hotspots'
+
+convert_region_gwas('figures/chr2_gloss_peak/region_gwas.npz', file.path(gdsl_dir, 'chr2_region_gwas.csv'))
+convert_region_gwas('figures/chr4_ggpps_peak/region_gwas.npz', file.path(gdsl_dir, 'chr4_region_gwas.csv'))
+
+for(f in c('ld_track.csv', 'gene_models.csv', 'gene_exons.csv', 'meta.json'))
+{
+  file.copy(file.path('figures/chr2_gloss_peak', f), file.path(gdsl_dir, str_c('chr2_', f)), overwrite = TRUE)
+  file.copy(file.path('figures/chr4_ggpps_peak', f), file.path(gdsl_dir, str_c('chr4_', f)), overwrite = TRUE)
+}
+
+# lead-marker genotype calls (chr2:52,490,664 GGAGT>G; chr4:65,447,981 G>A), read directly
+# from the tabix-indexed VCF via VariantAnnotation (no bcftools/vcftools dependency)
+gdsl_lead_markers <- GRanges(seqnames = c('2', '4'), ranges = IRanges(start = c(52490664, 65447981), width = 1))
+gdsl_lead_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = gdsl_lead_markers, geno = 'GT'))
+gdsl_lead_gt <- geno(gdsl_lead_vcf)$GT
+gdsl_lead_gt[gdsl_lead_gt %in% c('0|0')] <- '0/0'
+gdsl_lead_gt[gdsl_lead_gt %in% c('1|1')] <- '1/1'
+gdsl_lead_gt[!(gdsl_lead_gt %in% c('0/0', '1/1'))] <- NA  # drop hets + missing, as done elsewhere in this repo
+gdsl_fx <- rowRanges(gdsl_lead_vcf)
+gdsl_marker_names <- str_c(as.character(seqnames(gdsl_fx)), start(gdsl_fx), as.character(gdsl_fx$REF),
+                          sapply(gdsl_fx$ALT, function(a) as.character(a)[1]), sep = ':')
+gdsl_lead_geno <- as_tibble(t(gdsl_lead_gt), rownames = 'genotype')
+colnames(gdsl_lead_geno) <- c('genotype', gdsl_marker_names)
+write_csv(gdsl_lead_geno, file.path(gdsl_dir, 'lead_marker_genotypes.csv'))
+
+# chr2 leaf glossiness (specular-highlight fraction) per genotype, for the panel-4 boxplot
+# that replaces candidate expression on the chr2 side. Source: figures/chr2_gloss_peak/
+# box_data.csv; gloss = fraction of leaf pixels brighter than mean+2SD (see
+# figures/chr2_gloss_peak/chr2_story_legend.md). The raw per-image extraction script that
+# produced this value was never committed to the repo, so this reuses the already-computed
+# per-genotype output rather than recomputing it.
+read_csv(file.path('figures/chr2_gloss_peak', 'box_data.csv'), show_col_types = FALSE) %>%
+  dplyr::select(genotype, gloss) %>%
+  write_csv(file.path(gdsl_dir, 'chr2_gloss.csv'))
+
+# human disease scores (raw NE/AL/GA + common-genotype list), for the chr2 disease-score
+# column chart, which (unlike the chr4 side) keeps the same panel layout as ja_hotspots.
+file.copy('data/provided/human_disease_scores.csv', file.path(gdsl_dir, 'human_disease_scores.csv'), overwrite = TRUE)
+file.copy('figures/main/figure3/genotypes_common.csv', file.path(gdsl_dir, 'genotypes_common.csv'), overwrite = TRUE)
+
+# NOTE (flagged, not run here): the chr2 disease-score panel ideally uses a per-environment
+# marker-significance file (chr2_gloss_score_significance.csv, marker 2:52490664 vs
+# human_score) analogous to chr4_ja_score_significance.csv in ja_hotspots/, generated via:
+#   python scripts/run_single_marker_test.py data/provided/human_disease_scores.csv \
+#     human_score "2:52490664" --group-column environment \
+#     --out-file figures/supplemental/gdsl_hotspots/chr2_gloss_score_significance.csv
+# This needs the full panicle LOCO-MLM/LRT pipeline against the whole VCF and is not run by
+# this script. Until that file exists, gdsl_hotspots.R falls back to an on-the-fly per-
+# environment Wilcoxon test (the same fallback plotAssociationStability() already supports).
+
+# chr4:65.4 candidate-gene (Sobic.004G286700, GDSL/CE16 acetyl-xylan esterase) leaf
+# expression (log2 TPM+1), for the panel-4 boxplot kept on the chr4 side (as in
+# ja_hotspots.R). Same NE2021 SG2021 field-trial samples as the ja_hotspots block above.
+gdsl_row <- filter(tpm, .data[[gene_id_col]] == 'Sobic.004G286700')
+gdsl_vals <- gdsl_row %>% dplyr::select(-1) %>% pivot_longer(everything(), names_to = 'sample_id', values_to = 'tpm')
+gdsl_expr_geno <- meta_expr %>%
+  left_join(gdsl_vals, by = 'sample_id') %>%
+  drop_na(tpm) %>%
+  group_by(genotype) %>%
+  summarise(tpm = mean(tpm))
+write_csv(gdsl_expr_geno, file.path(gdsl_dir, 'chr4_candidate_expression.csv'))
+
+# chr4:65.4 leaf yellowness (b*, CIELAB) profile across leaf width, per genotype x bin
+# (bin0..bin99), for the yellowness-by-bin plot that replaces the disease-score panel on the
+# chr4 side. Source: figures/chr4_tan1_peak/bin_pergeno.csv, computed by
+# figures/chr4_tan1_peak/compute_yellowness_profiles.py -- that pipeline only has segmented
+# Nebraska2025 leaves for genotypes homozygous at the nearby (~489kb away), independent Tan1
+# marker 4:64,959,396, so the sample here is that same ~500-line subset regrouped by the
+# 65.4 lead marker instead of Tan1, not the full 925-line panel.
+file.copy('figures/chr4_tan1_peak/bin_pergeno.csv', file.path(gdsl_dir, 'bin_pergeno.csv'), overwrite = TRUE)
+
+
+# ---- figures/supplemental/lysm_hotspot ----
+# ggplot translation of figures/lysm_rlk_story (LysM receptor-like kinase Sobic.009G019100,
+# Chr09 disease hotspot). Region GWAS / gene-model / box-data inputs were already computed by
+# figures/lysm_rlk_story/compute_lysm_panels.py; this block converts/copies what's needed for
+# a ggplot figure. The disease panel is a mean +/- SE human-disease-score column chart by
+# environment (NE, NE-C, AL, GA), by allele at both the lead and LOF markers -- same raw
+# human_disease_scores.csv + genotypes_common.csv (for the NE-C common-genotype subset) as
+# the ja_hotspots block above, with per-genotype allele calls taken from box_data.csv's
+# peak_dose/lof_dose (no VCF re-read needed, this panel uses the same 925-genotype panel).
+lysm_dir <- 'figures/supplemental/lysm_hotspot'
+lysm_src <- 'figures/lysm_rlk_story'
+
+convert_region_gwas(file.path(lysm_src, 'region_gwas.npz'), file.path(lysm_dir, 'region_gwas.csv'))
+
+for(f in c('gene_models.csv', 'gene_exons.csv', 'meta.json', 'mlm_pvalues.json', 'box_data.csv'))
+{
+  file.copy(file.path(lysm_src, f), file.path(lysm_dir, f), overwrite = TRUE)
+}
+
+file.copy('data/provided/human_disease_scores.csv', file.path(lysm_dir, 'human_disease_scores.csv'), overwrite = TRUE)
+file.copy('figures/main/figure3/genotypes_common.csv', file.path(lysm_dir, 'genotypes_common.csv'), overwrite = TRUE)

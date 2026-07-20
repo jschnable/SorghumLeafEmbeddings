@@ -135,8 +135,8 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
         scale_fill_manual(values = c('black', 'darkgrey'), 
                           guide = 'none') +
         scale_color_manual(values = colors[1:(length(colors) - 1)]) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ymax - axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = -1*ymax + axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_upper - 1.25*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_lower + 1.25*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
         theme_use
     }
     else
@@ -160,8 +160,8 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
         scale_fill_manual(values = c('black', 'darkgrey'), 
                           guide = 'none') +
         scale_color_manual(values = colors) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ymax - axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = -1*ymax + axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_upper - 1.25*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_lower + 1.25*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
         theme_use
     }
   }
@@ -228,13 +228,13 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   
   if(is.null(pvals))
   {
+    pvals <- list()
     for(e in present_environments)
     {
-      pvals <- list(c(pvals, 
-                      e = wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')), 
-                                      data = .data, 
-                                      subset = .data[['environment']]==e, 
-                                      conf.int = TRUE)$p.value))
+      pvals[[e]] <- wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')),
+                                data = .data,
+                                subset = .data[['environment']]==e,
+                                conf.int = TRUE)$p.value
     }
   }
 
@@ -242,8 +242,12 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   for(e in present_environments)
   {
     p <- pvals[[e]]
-    
-    if(p < 0.0001)
+
+    if(is.na(p))
+    {
+      significance <- c(significance, '')
+    }
+    else if(p < 0.0001)
     {
       significance <- c(significance, '****')
     }
@@ -268,7 +272,8 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   df <- .data %>%
     group_by(environment, {{ marker }}) %>% 
     summarise(mean = mean({{ trait }}, na.rm = TRUE),
-              se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()))
+              se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()), 
+              n = n())
   df %>% 
     select(environment, {{ marker }}, n) %>%
     arrange(environment, {{ marker }}) %>% 
@@ -427,5 +432,5 @@ fig3bottom <- plot_grid(p_locus_hist, p_locus_stability, tan1_hist, tan1_scores,
 fig3 <- plot_grid(hotspot_plot_annotated, fig3bottom, nrow = 2, labels = c('a', NULL), rel_heights = c(1, 0.65))
 # Code-generated export only. Published pair is hand-edited figure3.svg + figure3.png
 # (do not overwrite those with this script).
-ggsave('figure3_from_code.png', plot = fig3, dpi = 300, bg = 'white', width = 6.5, height = 5.25)
+ggsave('figure3_from_code.svg', plot = fig3, dpi = 300, bg = 'white', width = 6.5, height = 5.25)
 
