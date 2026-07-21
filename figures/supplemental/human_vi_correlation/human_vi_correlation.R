@@ -37,7 +37,7 @@ human_vi_r2 <- cor(df_combined$human_score, df_combined$ExG_P20_disease_pct, use
 human_vi_scatter <- ggplot(df_combined, aes(human_score, ExG_P20_disease_pct)) + 
   geom_point(color = paletteer_d("nationalparkcolors::Acadia")[3], alpha = 0.25) + 
   geom_smooth(method = 'lm', linetype = 'dashed', se = FALSE, color = 'black') + 
-  annotate('text', x = 2, y = 60, label = "'Spearman '~rho^2==0.59", parse = TRUE, 
+  annotate('text', x = 2, y = 60, label = "'Spearman '~rho^2==0.42", parse = TRUE, 
            size = 9, size.unit = 'pt') +
   scale_x_continuous(name = 'Human Score', limits = c(1, 5)) + 
   scale_y_continuous(name = 'Unhealthy Leaf Tissue', limits = c(0, 60), labels = ~str_c(.x, '%')) +
