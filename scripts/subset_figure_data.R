@@ -5,6 +5,22 @@ library(VariantAnnotation)
 use_condaenv("jupyterlab-debugger-arm", required = TRUE)
 np <- reticulate::import("numpy")
 
+images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
+human_scores <- read_csv('data/provided/human_disease_scores.csv') %>% 
+  filter(!(image_id %in% images_exclude$image_id))
+
+scores_nebraska <- filter(human_scores, environment=='Nebraska2025') %>%
+  dplyr::select(image_id, score_A, score_B, human_score)
+exg <- read_csv('data/provided/exg_ratings.csv') %>% 
+  mutate(image_id = str_remove(image_id, '-05_00')) %>%
+  filter(!(image_id %in% images_exclude$image_id) 
+         & environment=='Nebraska2025') %>% 
+  dplyr::select(image_id, ExG_P20_disease_pct)
+
+nebraska_scores_exg <- full_join(exg, scores_nebraska, join_by(image_id))
+write_csv(nebraska_scores_exg, 'figures/supplemental/human_vi_correlation/nebraska_human_exg_ratings.csv')
+
+
 sam3_npz <- np$load('data/generatable/embeddings/sam3_all3_embeddings_2016crop_float32.npz')
 sam3_embeddings <- as_tibble(sam3_npz$f[['features']])
 colnames(sam3_embeddings) <- sam3_npz$f[['feature_columns']]
