@@ -81,7 +81,7 @@ sam3_scatter <- ggplot(sam3_all_predictions, aes(observed, predicted)) +
   scale_y_continuous(expand = c(0, 0), limits = c(0.75, 5)) +
   labs(x = 'Human Score (Mean)', 
        y = 'Predicted Human Score') + 
-  annotate('text', x=2, y=4.75, label = '"Spearman "~rho^2==0.64', parse = TRUE) +
+  annotate('text', x=2, y=4.75, label = '"Spearman "~rho^2==0.56', parse = TRUE) +
   theme_use
 sam3_scatter
 
@@ -91,7 +91,7 @@ feature_cor_hist <- ggplot(feature_cor, aes(human_score_spearman_rho)) +
   geom_histogram(fill = paletteer_d("dichromat::DarkRedtoBlue_12")[3]) + 
   scale_x_continuous(name = expression('Correlation with Human Disease Scores ('~rho~')'), 
                      expand = c(0, 0)) + 
-  scale_y_continuous(name = 'Frequency(SAM3 Embeddings)', 
+  scale_y_continuous(name = 'Frequency (SAM3 Embeddings)', 
                      expand = c(0, 0)) +
   theme_use
 feature_cor_hist

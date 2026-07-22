@@ -2,22 +2,22 @@ library(tidyverse)
 library(reticulate)
 library(jsonlite)
 library(VariantAnnotation)
-use_condaenv("jupyterlab-debugger-arm", required = TRUE)
+use_condaenv("jupyterlab-debugger", required = TRUE)
 np <- reticulate::import("numpy")
 
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
 human_scores <- read_csv('data/provided/human_disease_scores.csv') %>% 
   filter(!(image_id %in% images_exclude$image_id))
-
-scores_nebraska <- filter(human_scores, environment=='Nebraska2025') %>%
-  dplyr::select(image_id, genotype, score_A, score_B, human_score)
-
+scores_nebraska <- filter(human_scores, environment=='Nebraska2025')
 within_plot_range <- scores_nebraska %>% 
   group_by(plotNumber) %>% 
   summarise(min_score = min(human_score, na.rm = TRUE), 
             max_score = max(human_score, na.rm = TRUE)) %>% 
   rowwise() %>% 
   mutate(range = max_score - min_score)
+
+scores_nebraska <- scores_nebraska %>%
+  dplyr::select(image_id, genotype, score_A, score_B, human_score)
 
 scores_nebraska_genotypelevel <- scores_nebraska %>%
   group_by(genotype) %>% 
@@ -423,3 +423,8 @@ for(f in c('gene_models.csv', 'gene_exons.csv', 'meta.json', 'mlm_pvalues.json',
 
 file.copy('data/provided/human_disease_scores.csv', file.path(lysm_dir, 'human_disease_scores.csv'), overwrite = TRUE)
 file.copy('figures/main/figure3/genotypes_common.csv', file.path(lysm_dir, 'genotypes_common.csv'), overwrite = TRUE)
+
+exg_pmap <- read_csv('data/generatable/gwas/exg/traits/ExG_P20_disease_pct_marker_pvalues.csv')
+exg_pmap <- as.matrix(exg_pmap)
+exg_pmap <- exg_pmap[, c('CHROM', 'POS', 'p_value')]
+np$savez_compressed('figures/supplemental/exg_manhattan/ExG_P20_disease_pct_marker_pvalues.npz', pmap = exg_pmap)
