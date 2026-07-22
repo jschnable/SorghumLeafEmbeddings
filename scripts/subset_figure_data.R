@@ -10,14 +10,27 @@ human_scores <- read_csv('data/provided/human_disease_scores.csv') %>%
   filter(!(image_id %in% images_exclude$image_id))
 
 scores_nebraska <- filter(human_scores, environment=='Nebraska2025') %>%
-  dplyr::select(image_id, score_A, score_B, human_score)
+  dplyr::select(image_id, genotype, score_A, score_B, human_score)
+
+within_plot_range <- scores_nebraska %>% 
+  group_by(plotNumber) %>% 
+  summarise(min_score = min(human_score, na.rm = TRUE), 
+            max_score = max(human_score, na.rm = TRUE)) %>% 
+  rowwise() %>% 
+  mutate(range = max_score - min_score)
+
+scores_nebraska_genotypelevel <- scores_nebraska %>%
+  group_by(genotype) %>% 
+  summarise(human_score = median(human_score, na.rm = TRUE))
+
 exg <- read_csv('data/provided/exg_ratings.csv') %>% 
-  mutate(image_id = str_remove(image_id, '-05_00')) %>%
+  mutate(image_id = str_remove(image_id, '-05_00') %>% 
+           str_remove('_masked.png')) %>%
   filter(!(image_id %in% images_exclude$image_id) 
          & environment=='Nebraska2025') %>% 
   dplyr::select(image_id, ExG_P20_disease_pct)
 
-nebraska_scores_exg <- full_join(exg, scores_nebraska, join_by(image_id))
+nebraska_scores_exg <- full_join(exg, scores_nebraska, join_by(image_id), relationship = 'one-to-one')
 write_csv(nebraska_scores_exg, 'figures/supplemental/human_vi_correlation/nebraska_human_exg_ratings.csv')
 
 

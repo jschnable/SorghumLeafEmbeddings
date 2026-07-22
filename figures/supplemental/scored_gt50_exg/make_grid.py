@@ -13,8 +13,8 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import segment_leaf  # noqa: E402
 from extract_embeddings import valid_mask  # noqa: E402
 
-src_dir = "figures/supplemental/scored_gte25_exg"
-out_path = "figures/supplemental/scored_gte25_exg/grid.png"
+src_dir = "figures/supplemental/scored_gt50_exg"
+out_path = "figures/supplemental/scored_gt50_exg/grid.png"
 
 # Segmentation defaults, mirroring scripts/extract_embeddings.py.
 MASK_PIXELS_MIN = 750_000
