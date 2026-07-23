@@ -136,7 +136,7 @@ def package_versions() -> dict[str, str | None]:
     return versions
 
 
-def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path) -> None:
+def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path, threshold: float) -> None:
     plot_df = result_df.dropna(subset=["p_value"]).copy()
     if plot_df.empty:
         return
@@ -163,6 +163,8 @@ def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path) -> None:
     for i, chrom in enumerate(chroms):
         sub = plot_df.loc[plot_df[chrom_col] == chrom]
         plt.scatter(sub["x"], sub["minus_log10_p"], s=4, color=colors[i % 2], rasterized=True)
+    if (plot_df["p_value"].to_numpy(float) < threshold).any():
+        plt.axhline(-np.log10(threshold), color="#444444", linestyle="--", linewidth=1)
     plt.xticks(ticks, labels, rotation=0, fontsize=8)
     plt.xlabel("Chromosome")
     plt.ylabel("-log10(p)")
@@ -514,7 +516,7 @@ def main() -> None:
                 if args.write_full_results:
                     out.to_csv(traits_dir / f"{trait}_marker_pvalues.csv", index=False)
                 if args.write_plots:
-                    write_plots(out, trait, plots_dir)
+                    write_plots(out, trait, plots_dir, threshold)
             summary_rows.append(
                 {
                     "trait": trait,

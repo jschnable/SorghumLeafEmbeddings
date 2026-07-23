@@ -117,7 +117,8 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
       
       line_plot <- ggplot(df_main, aes(loc, {{ sig }}, color = panel)) + 
         ggrastr::rasterise(geom_line(), dpi=1e3) + 
-        ggrastr::rasterise(geom_line(mapping = aes(loc, {{ sig }}), data = df_overlay, inherit.aes = FALSE, color = colors[length(colors)])) + 
+        ggrastr::rasterise(geom_line(mapping = aes(loc, {{ sig }}), data = df_overlay, inherit.aes = FALSE, color = colors[length(colors)]), 
+                           dpi = 1e3) + 
         geom_rect(data = chromLength, 
                   inherit.aes = FALSE,
                   mapping = aes(xmin = bp_add, xmax = bp_add + max_bp, ymin = -1*axis_gap_y, ymax = axis_gap_y, 
@@ -275,7 +276,7 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
               se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()), 
               n = n())
   df %>% 
-    select(environment, {{ marker }}, n) %>%
+    dplyr::select(environment, {{ marker }}, n) %>%
     arrange(environment, {{ marker }}) %>% 
     print()
   
@@ -386,7 +387,7 @@ blues_all <- read_csv('blues_allsites_selected_embeddings.csv') %>%
 blues_ne <- filter(blues_all, environment=='NE')
 
 p_locus_hist <- ggplot(blues_ne, aes(embedding_mean_30)) +
-  geom_histogram(fill = paletteer_d("RColorBrewer::Paired")[10]) + 
+  geom_histogram(fill = paletteer_d("RColorBrewer::Paired")[10], color = paletteer_d("RColorBrewer::Paired")[10]) + 
   annotate('point', x = c(-0.3316678, 0.1221007), y = rep(0, 2), shape = 17, color = 'blue', size = 5) +
   scale_x_continuous(name = 'Embedding 30 (Mean)', 
                      expand = c(0, 0)) + 
@@ -398,7 +399,7 @@ p_locus_hist
 
 p_locus_embedding30_panicle <- read_csv('plocus_embedding_mean_30_significance.csv')[1:4, ] %>% 
   mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
-  select(environment, p_value) %>% 
+  dplyr::select(environment, p_value) %>% 
   deframe()
 p_locus_stability <- plotAssociationStability(blues_all, embedding_mean_30, `6:58476610:G:A`, colors = paletteer_d("RColorBrewer::Paired")[c(10, 9)], 
                                               trait_name = 'Embedding 30 (Mean)', marker_name = 'P Locus Peak Marker\n6:58476610', 
@@ -406,7 +407,7 @@ p_locus_stability <- plotAssociationStability(blues_all, embedding_mean_30, `6:5
 p_locus_stability
 
 tan1_hist <- ggplot(blues_ne, aes(embedding_std_897)) + 
-  geom_histogram(fill = paletteer_d('MoMAColors::Abbott')[3]) + 
+  geom_histogram(fill = paletteer_d('MoMAColors::Abbott')[3], color = paletteer_d('MoMAColors::Abbott')[3]) + 
   annotate('point', x = c(0.780, 0.918), y = rep(0, 2), shape = 17, color = 'blue', size = 5) + 
   scale_x_continuous(name = 'Embedding 897 (SD)', 
                      expand = c(0, 0)) + 
@@ -416,19 +417,17 @@ tan1_hist <- ggplot(blues_ne, aes(embedding_std_897)) +
   theme_use  
 tan1_hist
 
-human_scores <- read_csv('human_disease_scores.csv')
-genotypes_common <- read_csv('genotypes_common.csv')
-nec_scores <- filter(human_scores, environment=='Nebraska2025' & (genotype %in% genotypes_common)) %>% 
-  mutate(environment = 'Nebraska2025-Common')
-human_scores <- bind_rows(human_scores, nec_scores) %>% 
+human_scores <- read_csv('blues_allsites_human_scores.csv') %>% 
+  filter(environment=='Nebraska2025') %>% 
   mutate(environment = factor(environment, 
-                              levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'), 
-                              labels = c('NE', 'NE-C', 'AL', 'GA'))) %>% 
+                              levels = c('Nebraska2025'), 
+                              labels = c('NE'))) %>% 
   left_join(vcf, join_by(genotype), relationship = 'many-to-one')
 tan1_scores <- plotAssociationStability(human_scores, human_score, `4:64959396:G:A`, colors = paletteer_d('MoMAColors::Abbott')[3:4], trait_name = 'Human Disease\nSeverity Score', marker_name = 'Tan1 Peak Marker')
 tan1_scores
 
-fig3bottom <- plot_grid(p_locus_hist, p_locus_stability, tan1_hist, tan1_scores, nrow = 1, labels = c('b', 'c', 'd', 'e'))
+fig3bottom <- plot_grid(p_locus_hist, p_locus_stability, tan1_hist, tan1_scores, nrow = 1, labels = c('b', 'c', 'd', 'e'), 
+                        rel_widths = c(1, 1, 1, 0.6))
 fig3 <- plot_grid(hotspot_plot_annotated, fig3bottom, nrow = 2, labels = c('a', NULL), rel_heights = c(1, 0.65))
 # Code-generated export only. Published pair is hand-edited figure3.svg + figure3.png
 # (do not overwrite those with this script).

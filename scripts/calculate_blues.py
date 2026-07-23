@@ -42,6 +42,23 @@ def winsorize(values: np.ndarray, strength: float) -> np.ndarray:
     return np.minimum(np.maximum(values, lo), hi)
 
 
+def logit_transform(values: np.ndarray, epsilon: float = 5e-5) -> np.ndarray:
+    """Logit-transform a proportion trait: ln(p/(1-p)).
+
+    Values whose max exceeds 1 are assumed to be percentages (0-100) and are
+    divided by 100 first so the transform always operates on a 0-1 proportion.
+    Proportions are clipped to [epsilon, 1 - epsilon] before the log so exact
+    0/1 values (common in percentage-of-area traits) yield large finite logits
+    instead of +/-inf, which would otherwise silently corrupt downstream
+    quantile/mean calculations (winsorize, plot-mean aggregation).
+    """
+    values = values.astype(float)
+    if np.nanmax(values) > 1:
+        values = values / 100.0
+    values = np.clip(values, epsilon, 1.0 - epsilon)
+    return np.log(values / (1.0 - values))
+
+
 def harmonic_mean(counts: pd.Series | np.ndarray) -> float:
     values = np.asarray(counts, dtype=float)
     values = values[np.isfinite(values) & (values > 0)]
@@ -744,6 +761,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trait-regex", default=r"^(embedding_(mean|std)_\d+|PC\d+|IC\d+)$")
     parser.add_argument("--winsor-strength", type=float, default=0.01)
     parser.add_argument(
+        "--logit-transform",
+        action="store_true",
+        help="Logit-transform each trait column (ln(p/(1-p))) before estimating BLUEs and "
+        "variance components. A trait column whose values exceed 1 is assumed to be a "
+        "percentage (0-100) and is divided by 100 before the transform.",
+    )
+    parser.add_argument(
         "--vc-cpu",
         type=int,
         default=min(os.cpu_count() or 1, 8),
@@ -793,6 +817,10 @@ def main() -> None:
     data, traits = load_data(args)
     if data.empty:
         raise SystemExit("No rows remain after joins/filtering")
+    if args.logit_transform:
+        data = data.copy()
+        for trait in traits:
+            data[trait] = logit_transform(data[trait].to_numpy())
     suffix = args.environment
     if not args.skip_blues:
         if args.environment == "all":

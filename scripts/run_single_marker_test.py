@@ -24,9 +24,13 @@ from panicle.data.loaders import load_genotype_file
 from panicle.matrix.kinship_loco import PANICLE_K_VanRaden_LOCO
 from panicle.matrix.pca import PANICLE_PCA
 
+from embedding_io import image_key
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_GENOTYPE = REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_925genotypes_filtered_v3.vcf.gz"
+DEFAULT_EXCLUDE_LIST = REPO_ROOT / "data" / "provided" / "image_ids_exclude.csv"
+DEFAULT_COMMON_GENOTYPES_LIST = REPO_ROOT / "data" / "provided" / "genotypes_allsites.csv"
 
 ENVIRONMENT_GROUP_COLUMN = "environment"
 COMMON_GENOTYPE_TARGET_ENV = "Nebraska2025"
@@ -107,6 +111,34 @@ def result_value(value) -> float:
     return float(arr[0]) if arr.size else float("nan")
 
 
+def read_exclude_keys(exclude_input: Path | str | None) -> set[str]:
+    if not exclude_input:
+        return set()
+    path = Path(exclude_input)
+    if not path.exists():
+        return set()
+    df = pd.read_csv(path, dtype=str)
+    if df.empty or "image_id" not in df.columns:
+        return set()
+    ids = df["image_id"].astype(str).str.strip()
+    ids = ids[ids.notna() & (ids != "")]
+    return {image_key(v) for v in ids}
+
+
+def read_genotype_list(genotype_list_input: Path | str | None, genotype_col: str = "genotype") -> set[str]:
+    if not genotype_list_input:
+        return set()
+    path = Path(genotype_list_input)
+    if not path.exists():
+        return set()
+    df = pd.read_csv(path, dtype=str)
+    if df.empty:
+        return set()
+    ids = df[genotype_col] if genotype_col in df.columns else df.iloc[:, 0]
+    ids = ids.astype(str).str.replace(" ", "", regex=False).str.strip()
+    return set(ids[ids.notna() & (ids != "")])
+
+
 def load_phenotypes(
     pheno_file: Path,
     genotype_col: str,
@@ -114,11 +146,28 @@ def load_phenotypes(
     env_col: str | None,
     env_value: str | None,
     group_col: str | None,
+    exclude_list: Path | str | None = DEFAULT_EXCLUDE_LIST,
 ) -> pd.DataFrame:
-    usecols = list(dict.fromkeys([genotype_col, phenotype_col, *([env_col] if env_col else []), *([group_col] if group_col else [])]))
+    header = pd.read_csv(pheno_file, nrows=0).columns
+    has_image_id = "image_id" in header
+    usecols = list(
+        dict.fromkeys(
+            [
+                genotype_col,
+                phenotype_col,
+                *([env_col] if env_col else []),
+                *([group_col] if group_col else []),
+                *(["image_id"] if has_image_id else []),
+            ]
+        )
+    )
     df = pd.read_csv(pheno_file, usecols=usecols)
     df[genotype_col] = df[genotype_col].astype(str).str.replace(" ", "", regex=False)
     df[phenotype_col] = pd.to_numeric(df[phenotype_col], errors="coerce")
+    if has_image_id:
+        exclude_keys = read_exclude_keys(exclude_list)
+        if exclude_keys:
+            df = df[~df["image_id"].map(image_key).isin(exclude_keys)]
     if env_col and env_value is not None:
         df = df[df[env_col].astype(str) == str(env_value)]
     return df.dropna(subset=[genotype_col, phenotype_col])
@@ -244,6 +293,21 @@ def parse_args() -> argparse.Namespace:
         "--group-column",
         help="Column in phenotype_csv to stratify by; a separate test is run for each level.",
     )
+    parser.add_argument(
+        "--exclude-list",
+        type=Path,
+        default=DEFAULT_EXCLUDE_LIST,
+        help="CSV of image IDs to exclude before testing (used only if phenotype_csv has an image_id column).",
+    )
+    parser.add_argument(
+        "--common-genotypes-list",
+        type=Path,
+        default=DEFAULT_COMMON_GENOTYPES_LIST,
+        help=(
+            f"CSV of genotype IDs used to build the {COMMON_GENOTYPE_GROUP_LABEL!r} group "
+            f"(restricts {COMMON_GENOTYPE_TARGET_ENV} rows to these genotypes)."
+        ),
+    )
     parser.add_argument("--min-samples", type=int, default=30)
     parser.add_argument("--min-homozygote-count", type=int, default=3)
     parser.add_argument("--n-pcs", type=int, default=5)
@@ -289,6 +353,7 @@ def main() -> None:
         args.env_column,
         args.env,
         args.group_column,
+        args.exclude_list,
     )
     if args.env_column and args.env is not None:
         log(f"Filtered to {args.env_column} == {args.env!r}: {len(pheno)} rows")
@@ -308,17 +373,14 @@ def main() -> None:
             groups.append((level, pheno[pheno[args.group_column].astype(str) == level]))
 
     if args.group_column == ENVIRONMENT_GROUP_COLUMN and COMMON_GENOTYPE_TARGET_ENV in levels:
-        common_genotypes = set.intersection(
-            *[
-                set(pheno.loc[pheno[args.group_column].astype(str) == level, args.genotype_column])
-                for level in levels
-            ]
-        )
+        common_genotypes = read_genotype_list(args.common_genotypes_list, args.genotype_column)
+        if not common_genotypes:
+            raise ValueError(f"No genotypes found in --common-genotypes-list {args.common_genotypes_list}")
         target_sub = pheno[pheno[args.group_column].astype(str) == COMMON_GENOTYPE_TARGET_ENV]
         common_sub = target_sub[target_sub[args.genotype_column].isin(common_genotypes)]
         log(
-            f"{COMMON_GENOTYPE_TARGET_ENV} genotypes common to all {len(levels)} "
-            f"{args.group_column} levels: {len(common_genotypes)}"
+            f"{COMMON_GENOTYPE_GROUP_LABEL}: {len(common_sub)}/{len(target_sub)} {COMMON_GENOTYPE_TARGET_ENV} rows "
+            f"match {len(common_genotypes)} genotypes in {args.common_genotypes_list.name}"
         )
         groups.append((COMMON_GENOTYPE_GROUP_LABEL, common_sub))
 
@@ -351,6 +413,12 @@ def main() -> None:
         "env_column": args.env_column,
         "env": args.env,
         "group_column": args.group_column,
+        "exclude_list": str(args.exclude_list) if "image_id" in pheno.columns else None,
+        "common_genotypes_list": (
+            str(args.common_genotypes_list)
+            if any(label == COMMON_GENOTYPE_GROUP_LABEL for label, _ in groups)
+            else None
+        ),
         "marker_argument": args.marker,
         "selected_marker": marker_meta,
         "genotype": str(args.genotype),

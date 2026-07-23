@@ -31,7 +31,7 @@ figures/supplemental/rf_exg/rf_exg_scatterplot.svg
 figures/**/*_from_code.png
 figures/**/*_0.png
 figures/**/*_1.png
-figures/main/figure2/rf_accuracy.png
-figures/main/figure2/sam3_cor.png
+figures/main/figure2/rf_accuracy.*
+figures/main/figure2/sam3_cor.*
 figures/main/figure3/figure3_from_code.png
 figures/lysm_rlk_story/lysm_rlk_story_v1_deprecated.png

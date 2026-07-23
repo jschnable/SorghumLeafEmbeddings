@@ -8,6 +8,7 @@ np <- reticulate::import("numpy")
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
 human_scores <- read_csv('data/provided/human_disease_scores.csv') %>% 
   filter(!(image_id %in% images_exclude$image_id))
+write_csv(human_scores, 'figures/main/figure3/human_disease_scores.csv')
 scores_nebraska <- filter(human_scores, environment=='Nebraska2025')
 within_plot_range <- scores_nebraska %>% 
   group_by(plotNumber) %>% 
@@ -33,6 +34,11 @@ exg <- read_csv('data/provided/exg_ratings.csv') %>%
 nebraska_scores_exg <- full_join(exg, scores_nebraska, join_by(image_id), relationship = 'one-to-one')
 write_csv(nebraska_scores_exg, 'figures/supplemental/human_vi_correlation/nebraska_human_exg_ratings.csv')
 
+score_blues_nebraska <- read_csv('data/generatable/blues/allsites_human_scores/blues_Nebraska2025.csv')
+score_blues_alabama <- read_csv('data/generatable/blues/allsites_human_scores/blues_Alabama2025.csv')
+score_blues_georgia <- read_csv('data/generatable/blues/allsites_human_scores/blues_Georgia2025.csv')
+score_blues_allsites <- bind_rows(score_blues_nebraska, score_blues_alabama, score_blues_georgia)
+write_csv(score_blues_allsites, 'figures/main/figure3/blues_allsites_human_scores.csv')
 
 sam3_npz <- np$load('data/generatable/embeddings/sam3_all3_embeddings_2016crop_float32.npz')
 sam3_embeddings <- as_tibble(sam3_npz$f[['features']])

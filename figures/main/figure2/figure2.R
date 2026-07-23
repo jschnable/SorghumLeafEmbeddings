@@ -66,7 +66,7 @@ predictive_ability <- ggplot(model_specs, aes(label, mean_spearman_r2, fill = la
   theme(axis.text.x = element_text(angle = 90), 
         legend.position = 'none')
 predictive_ability
-ggsave(filename = 'rf_accuracy.png', plot = predictive_ability, width = 3.3, height = 1.85, units = 'in', dpi = 300, bg = 'white')
+ggsave(filename = 'rf_accuracy.svg', plot = predictive_ability, width = 3.3, height = 1.85, units = 'in', dpi = 300, bg = 'white')
 
 sam3_all_predictions <- read_csv('sam3_embedding_human_score_rf_image_predictions.csv')
 rho2 <- cor(sam3_all_predictions$observed, sam3_all_predictions$predicted, method = 'spearman')^2 %>% 
@@ -97,4 +97,4 @@ feature_cor_hist <- ggplot(feature_cor, aes(human_score_spearman_rho)) +
 feature_cor_hist
 
 fig2_bottom <- plot_grid(sam3_scatter, feature_cor_hist, labels = c('c', 'd'))
-ggsave(filename = 'sam3_cor.png', plot = fig2_bottom, width = 6.5, height = 3.1, units = 'in', dpi = 300, bg = 'white')
+ggsave(filename = 'sam3_cor.svg', plot = fig2_bottom, width = 4.95, height = 2.3, units = 'in', dpi = 300, bg = 'white')
