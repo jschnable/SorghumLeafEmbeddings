@@ -144,7 +144,7 @@ def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path, threshold: f
     chrom_col = "CHROM" if "CHROM" in plot_df.columns else "CHR"
     pos_col = "POS" if "POS" in plot_df.columns else "BP"
     plot_df[chrom_col] = plot_df[chrom_col].astype(str)
-    chroms = sorted(plot_df[chrom_col].unique(), key=lambda x: (not x.isdigit(), x))
+    chroms = sorted(plot_df[chrom_col].unique(), key=lambda x: (not x.isdigit(), int(x) if x.isdigit() else x))
     offsets = {}
     offset = 0
     ticks = []
@@ -163,8 +163,10 @@ def write_plots(result_df: pd.DataFrame, trait: str, out_dir: Path, threshold: f
     for i, chrom in enumerate(chroms):
         sub = plot_df.loc[plot_df[chrom_col] == chrom]
         plt.scatter(sub["x"], sub["minus_log10_p"], s=4, color=colors[i % 2], rasterized=True)
-    if (plot_df["p_value"].to_numpy(float) < threshold).any():
-        plt.axhline(-np.log10(threshold), color="#444444", linestyle="--", linewidth=1)
+    threshold_y = -np.log10(threshold)
+    plt.axhline(threshold_y, color="#444444", linestyle="--", linewidth=1)
+    ymax = max(float(plot_df["minus_log10_p"].max()), threshold_y)
+    plt.ylim(0, ymax * 1.05)
     plt.xticks(ticks, labels, rotation=0, fontsize=8)
     plt.xlabel("Chromosome")
     plt.ylabel("-log10(p)")

@@ -1,0 +1,33 @@
+{
+  "phenotype_csv": "figures/main/figure3/blues_allsites_selected_embeddings.csv",
+  "phenotype_column": "embedding_mean_30",
+  "genotype_column": "genotype",
+  "env_column": null,
+  "env": null,
+  "group_column": "environment",
+  "marker_argument": "6:58476610:G:A",
+  "selected_marker": {
+    "MARKER": "6:58476610:G:A",
+    "CHROM": "6",
+    "POS": 58476610,
+    "SNP": "6:58476610:G:A",
+    "REF": "G",
+    "ALT": "A"
+  },
+  "genotype": "/home/schnable/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype_format": "vcf",
+  "n_groups": 5,
+  "n_tested": 5,
+  "n_pcs": 5,
+  "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs as covariates, forced LRT refinement",
+  "lrt_refinement": true,
+  "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",
+  "min_samples": 30,
+  "min_homozygote_count": 3,
+  "elapsed_seconds": 38.69837156892754,
+  "package_versions": {
+    "panicle": "0.3.4",
+    "numpy": "2.4.2",
+    "pandas": "3.0.2"
+  }
+}
