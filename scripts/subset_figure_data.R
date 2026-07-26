@@ -2,7 +2,7 @@ library(tidyverse)
 library(reticulate)
 library(jsonlite)
 library(VariantAnnotation)
-use_condaenv("jupyterlab-debugger-arm", required = TRUE)
+use_condaenv("jupyterlab-debugger", required = TRUE)
 np <- reticulate::import("numpy")
 
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
@@ -60,6 +60,7 @@ for(f in sam3_npz$f[['feature_columns']])
 }
 
 write_csv(feature_cor, 'figures/main/figure2/sam3_embedding_human_score_correlations_nebraska.csv')
+write_csv(feature_cor, 'figures/supplemental/repeatability_vs_disease_cor/sam3_embedding_human_score_correlations_nebraska.csv')
 
 dino2_npz <- np$load('data/generatable/embeddings/dino2_all3_embeddings_2016crop_float32.npz')
 dino2_embeddings <- as_tibble(dino2_npz$f[['features']])
@@ -81,9 +82,59 @@ for(f in dino2_npz$f[['feature_columns']])
 
 write_csv(feature_cor, 'figures/supplemental/repeatability_vs_disease_cor/dino2_embedding_human_score_correlations_nebraska.csv')
 
+# repeatability_vs_disease_cor.R also needs the per-embedding broad-sense heritability
+# (Nebraska2025 BLUE model diagnostics), already computed alongside the BLUEs themselves
+file.copy('data/generatable/blues/nebraska_dino2_embeddings_2016crop/heritability_Nebraska2025.csv',
+         'figures/supplemental/repeatability_vs_disease_cor/dino2_heritability_Nebraska2025.csv', overwrite = TRUE)
+file.copy('data/generatable/blues/nebraska_sam3_embeddings_2016crop/heritability_Nebraska2025.csv',
+         'figures/supplemental/repeatability_vs_disease_cor/sam3_heritability_Nebraska2025.csv', overwrite = TRUE)
 
 
-make_sliding_windows <- function(max_bp, window, step, chromosome) 
+# ---- figures/main/figure2 random forest outputs ----
+# figure2.R assembles the RF-accuracy bar chart and SAM3 scatter panel from per-model fold
+# accuracies (and, for the full-embedding models, per-image predictions), already computed
+# into data/generatable/random_forest_<model>_<predictors>_human_score/, plus the
+# rf_model_list/rf_predictor_prefix_list/rf_target_list.txt inputs it iterates over.
+fig2_dir <- 'figures/main/figure2'
+rf_fig2_copies <- tribble(
+  ~src,                                                                              ~dst,
+  'data/generatable/random_forest_dino2_embedding_human_score/rf_fold_accuracy.csv',      'dino2_embedding_human_score_rf_fold_accuracy.csv',
+  'data/generatable/random_forest_dino2_embedding_mean_human_score/rf_fold_accuracy.csv', 'dino2_embedding_mean_human_score_rf_fold_accuracy.csv',
+  'data/generatable/random_forest_dino2_embedding_std_human_score/rf_fold_accuracy.csv',  'dino2_embedding_std_human_score_rf_fold_accuracy.csv',
+  'data/generatable/random_forest_sam3_embedding_human_score/rf_fold_accuracy.csv',       'sam3_embedding_human_score_rf_fold_accuracy.csv',
+  'data/generatable/random_forest_sam3_embedding_human_score/rf_image_predictions.csv',   'sam3_embedding_human_score_rf_image_predictions.csv',
+  'data/generatable/random_forest_sam3_embedding_mean_human_score/rf_fold_accuracy.csv',  'sam3_embedding_mean_human_score_rf_fold_accuracy.csv',
+  'data/generatable/random_forest_sam3_embedding_std_human_score/rf_fold_accuracy.csv',   'sam3_embedding_std_human_score_rf_fold_accuracy.csv',
+  'data/provided/rf_model_list.txt',                                                      'rf_model_list.txt',
+  'data/provided/rf_predictor_prefix_list.txt',                                           'rf_predictor_prefix_list.txt',
+  'data/provided/rf_target_list.txt',                                                     'rf_target_list.txt'
+)
+for(i in 1:nrow(rf_fig2_copies)) file.copy(rf_fig2_copies$src[i], file.path(fig2_dir, rf_fig2_copies$dst[i]), overwrite = TRUE)
+
+
+# ---- figures/supplemental/feature_importance_distribution ----
+fid_dir <- 'figures/supplemental/feature_importance_distribution'
+file.copy('data/generatable/random_forest_dino2_embedding_human_score/rf_feature_importance_summary.csv',
+         file.path(fid_dir, 'dino2_embedding_human_score_rf_feature_importance_summary.csv'), overwrite = TRUE)
+file.copy('data/generatable/random_forest_sam3_embedding_human_score/rf_feature_importance_summary.csv',
+         file.path(fid_dir, 'sam3_embedding_human_score_rf_feature_importance_summary.csv'), overwrite = TRUE)
+
+
+# ---- figures/supplemental/rf_dino2_scores ----
+file.copy('data/generatable/random_forest_dino2_embedding_human_score/rf_image_predictions.csv',
+         'figures/supplemental/rf_dino2_scores/dino2_embedding_human_score_rf_image_predictions.csv', overwrite = TRUE)
+
+
+# ---- figures/supplemental/rf_exg ----
+rf_exg_dir <- 'figures/supplemental/rf_exg'
+file.copy('data/generatable/random_forest_dino2_embedding_exg/rf_image_predictions.csv',
+         file.path(rf_exg_dir, 'dino2_embedding_exg_rf_image_predictions.csv'), overwrite = TRUE)
+file.copy('data/generatable/random_forest_sam3_embedding_exg/rf_image_predictions.csv',
+         file.path(rf_exg_dir, 'sam3_embedding_exg_rf_image_predictions.csv'), overwrite = TRUE)
+
+
+
+make_sliding_windows <- function(max_bp, window, step, chromosome)
 {
   window <- window - 1
   windows <- tibble(window_start = seq(from = 0, by = step, length.out = ceiling(max_bp/step)),
@@ -505,3 +556,13 @@ exg_pmap <- read_csv('data/generatable/gwas/exg/traits/ExG_P20_disease_pct_marke
 exg_pmap <- as.matrix(exg_pmap)
 exg_pmap <- exg_pmap[, c('CHROM', 'POS', 'p_value')]
 np$savez_compressed('figures/supplemental/exg_manhattan/ExG_P20_disease_pct_marker_pvalues.npz', pmap = exg_pmap)
+
+
+# ---- figures/supplemental/p_locus_scores ----
+# p_locus_scores.R reads its own local copies of the raw disease scores + common-genotype
+# list, same source as ja_hotspots/gdsl_hotspots/lysm_hotspot above. Its marker-significance
+# file (plocus_score_significance.csv) and VCF subset (subset_snps.recode.vcf) are
+# hand-generated and not reproduced here.
+plocus_dir <- 'figures/supplemental/p_locus_scores'
+file.copy('data/provided/human_disease_scores.csv', file.path(plocus_dir, 'human_disease_scores.csv'), overwrite = TRUE)
+file.copy('figures/main/figure3/genotypes_common.csv', file.path(plocus_dir, 'genotypes_common.csv'), overwrite = TRUE)

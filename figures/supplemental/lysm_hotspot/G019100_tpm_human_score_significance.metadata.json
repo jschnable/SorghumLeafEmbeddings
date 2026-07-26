@@ -1,0 +1,20 @@
+{
+  "box_data_csv": "/home/schnable/Documents/SorghumLeafEmbeddings/figures/supplemental/lysm_hotspot/box_data.csv",
+  "predictor": "G019100_tpm",
+  "phenotype_column": "human_score",
+  "genotype": "/home/schnable/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype_format": "vcf",
+  "n_pcs": 5,
+  "loco_chrom_excluded": "9",
+  "model": "PANICLE_MLM Wald test with VanRaden LOCO kinship (Chr09 excluded, matching Sobic.009G019100's own chromosome) as random effect, 5 genotype PCs as fixed covariates, forced LRT refinement when Wald p < screen threshold \u2014 same population-structure corrections as scripts/run_single_marker_test.py (PANICLE_MLM_LOCO_MULTI), applied by hand since the predictor is a continuous expression trait rather than a genotyped marker.",
+  "screen_threshold": 0.0005,
+  "lrt_solver": "GEMMA",
+  "lrt_refined": false,
+  "min_samples": 30,
+  "elapsed_seconds": 8.9872516898904,
+  "package_versions": {
+    "panicle": "0.3.4",
+    "numpy": "2.4.2",
+    "pandas": "3.0.2"
+  }
+}
