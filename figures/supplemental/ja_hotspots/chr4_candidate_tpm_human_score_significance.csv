@@ -1,0 +1,2 @@
+predictor,candidate_gene,predictor_chrom_loco,phenotype_column,n_observations,predictor_mean,predictor_sd,phenotype_mean,phenotype_sd,effect,se,p_value,standardized_effect,effect_direction,lrt_refined,status
+chr4_candidate_log2_tpm,Sobic.004G058000,4,human_score,475,2.0149417239000473,0.966405909769328,2.147855263157895,0.6835234918564742,-0.08372090959480766,0.031350793812727755,0.007838530783563311,-0.12248431925495154,decreases,False,tested
