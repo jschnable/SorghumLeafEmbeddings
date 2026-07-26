@@ -108,3 +108,24 @@ score, i.e. senescence/damage, not part of this disease locus.)
 
 **Bottom line:** chr9:62.2 = a disease-severity locus; causal gene **JAR1 `Sobic.009G249900`**
 (jasmonate-Ile ligase; regulatory eQTL mechanism, coding competitors ruled out as passengers).
+
+---
+## UPDATE (2026-07-26): re-run on revised phenotype QC — same call, numbers tightened
+
+`codingvar_disease.json` was regenerated (sample lists refreshed: disease_exg n 895→891, human_score
+n 541→499). Effect sizes are essentially unchanged and the conclusion is unchanged.
+
+- Lead marginal: disease_exg β\*=0.390, p=3.2e-6 (was 2.4e-6); human_score β\*=0.228, p=2.9e-2
+  (unchanged).
+- Passengers conditioned on lead still collapse: Ile446Arg β\*≈−0.01, p=0.94; Ile349Met β\*≈−0.01,
+  p=0.94 (both were p≈0.98 previously — slightly less extreme, still null).
+- Lead still survives conditioning: on Ile446Arg p=0.011 (disease_exg), on Ile349Met p=1.1e-4
+  (disease_exg) / p=5.1e-3 (human_score, was 3.7e-3).
+- JAR1's own missense remain flatly null: disease_exg p=0.60 (Lys185Glu) – 0.82 (Asn103Asp) (was
+  p=0.46–0.66 — slightly weaker signal, still clearly NS).
+- Gly514Arg (PP2C, block-B passenger) unchanged pattern: strong on disease_exg (p=3.6e-6) but
+  weak/NS on human_score (p=0.11) — still the separate ExG/senescence signal, set aside from this
+  disease locus.
+
+**Bottom line unchanged:** JAR1 `Sobic.009G249900` remains the causal-gene call; coding competitors
+remain ruled out as LD passengers.

@@ -147,6 +147,7 @@ def load_phenotypes(
     env_value: str | None,
     group_col: str | None,
     exclude_list: Path | str | None = DEFAULT_EXCLUDE_LIST,
+    log2: bool = False,
 ) -> pd.DataFrame:
     header = pd.read_csv(pheno_file, nrows=0).columns
     has_image_id = "image_id" in header
@@ -164,6 +165,8 @@ def load_phenotypes(
     df = pd.read_csv(pheno_file, usecols=usecols)
     df[genotype_col] = df[genotype_col].astype(str).str.replace(" ", "", regex=False)
     df[phenotype_col] = pd.to_numeric(df[phenotype_col], errors="coerce")
+    if log2:
+        df[phenotype_col] = np.log2(df[phenotype_col].where(df[phenotype_col] > 0))
     if has_image_id:
         exclude_keys = read_exclude_keys(exclude_list)
         if exclude_keys:
@@ -308,6 +311,11 @@ def parse_args() -> argparse.Namespace:
             f"(restricts {COMMON_GENOTYPE_TARGET_ENV} rows to these genotypes)."
         ),
     )
+    parser.add_argument(
+        "--log2",
+        action="store_true",
+        help="Log2-transform phenotype_column before testing (non-positive values become missing).",
+    )
     parser.add_argument("--min-samples", type=int, default=30)
     parser.add_argument("--min-homozygote-count", type=int, default=3)
     parser.add_argument("--n-pcs", type=int, default=5)
@@ -354,6 +362,7 @@ def main() -> None:
         args.env,
         args.group_column,
         args.exclude_list,
+        args.log2,
     )
     if args.env_column and args.env is not None:
         log(f"Filtered to {args.env_column} == {args.env!r}: {len(pheno)} rows")
@@ -409,6 +418,7 @@ def main() -> None:
     metadata = {
         "phenotype_csv": str(args.phenotype_csv),
         "phenotype_column": args.phenotype_column,
+        "log2": args.log2,
         "genotype_column": args.genotype_column,
         "env_column": args.env_column,
         "env": args.env,
