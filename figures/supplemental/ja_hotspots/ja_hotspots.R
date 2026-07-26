@@ -1,12 +1,15 @@
 # Supplemental figure: two jasmonate (JA) pathway leaf-embedding hotspots.
 # Left  = chr4:4.7-4.8 Mb, candidate VQ jasmonate-defense regulator Sobic.004G058000.
 # Right = chr9:61.9-62.4 Mb, candidate JAR1 jasmonate-Ile ligase Sobic.009G249900.
+# Bottom-right panel of each column: lead-marker effect on human disease score BLUE,
+# Nebraska2025 only (no other environments, no NE-common-genotype subset).
 # All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
 library(ggrastr)
 library(jsonlite)
+library(ggtext)
 
 theme_use <- theme_minimal() +
   theme(axis.text.x = element_text(size = 9, color = 'black', margin = margin(0, 0, 0, 0),
@@ -24,95 +27,7 @@ theme_use <- theme_minimal() +
         panel.grid = element_blank(),
         panel.background = element_blank())
 
-# from figures/main/figure3/figure3.R, with one bugfix: the original pvals-auto-compute
-# loop built `list(c(pvals, e = wilcox.test(...)))`, where `e` names the new element
-# literally "e" (not the loop variable's value), so every environment's p-value collided
-# under one name and pvals[[e]] never matched later. Fixed to assign pvals[[e]] directly.
-plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'red'), trait_name = NULL, marker_name = NULL, pvals = NULL)
-{
-  trait_str <- as.character(deparse(substitute(trait)))
-  marker_str <- as.character(deparse(substitute(marker)))
-  if(is.null(trait_name)) {trait_name <- trait_str}
-  if(is.null(marker_name)) {trait_name <- marker_str}
-  .data <- .data %>% filter(!is.na({{ marker }}) & !is.na({{ trait }}))
-  present_environments <- levels(.data[['environment']])[levels(.data[['environment']]) %in% unique(as.character(.data[['environment']]))]
-
-  if(is.null(pvals))
-  {
-    pvals <- list()
-    for(e in present_environments)
-    {
-      pvals[[e]] <- wilcox.test(as.formula(str_c(trait_str, ' ~ `', marker_str, '`')),
-                                data = .data,
-                                subset = .data[['environment']]==e,
-                                conf.int = TRUE)$p.value
-    }
-  }
-
-  significance <- c()
-  for(e in present_environments)
-  {
-    p <- pvals[[e]]
-
-    if(is.na(p))
-    {
-      significance <- c(significance, '')
-    }
-    else if(p < 0.0001)
-    {
-      significance <- c(significance, '****')
-    }
-    else if(p < 0.001)
-    {
-      significance <- c(significance, '***')
-    }
-    else if(p < 0.01)
-    {
-      significance <- c(significance, '**')
-    }
-    else if(p < 0.05)
-    {
-      significance <- c(significance, '*')
-    }
-    else
-    {
-      significance <- c(significance, '')
-    }
-  }
-
-  df <- .data %>%
-    group_by(environment, {{ marker }}) %>%
-    summarise(mean = mean({{ trait }}, na.rm = TRUE),
-              se = sd({{ trait }}, na.rm = TRUE)/sqrt(n()),
-              n = n())
-  df %>%
-    dplyr::select(environment, {{ marker }}, n) %>%
-    arrange(environment, {{ marker }}) %>%
-    print()
-
-  plot <- ggplot(df, aes(environment, mean, fill = {{ marker }})) +
-    geom_col(position = position_dodge(width = 0.9)) +
-    geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
-                  position = position_dodge(width = 0.9),
-                  width = 0.25) +
-    annotate(geom = 'text',
-             x = present_environments,
-             y = max(df$mean, na.rm = TRUE),
-             label = significance,
-             size = 9,
-             size.unit = 'pt') +
-    scale_x_discrete(name = NULL,
-                     expand = c(0, 0)) +
-    scale_y_continuous(name = trait_name,
-                       expand = c(0, 0)) +
-    scale_fill_manual(name = marker_name,
-                      values = colors,
-                      labels = str_split(deparse(substitute(marker)), ':')[[1]][3:4]) +
-    theme_use +
-    theme(axis.text.x = element_text(size = 9, color = 'black', margin = margin(0, 0, 0, 0),
-                                     vjust = 0.5, hjust = 0.5, angle = 90))
-  return(plot)
-}
+fmt_p <- function(p) if (p < 1e-3) sprintf('p = %.0e', p) else sprintf('p = %.3f', p)
 
 ## ---- panel builders -------------------------------------------------------
 
@@ -170,13 +85,13 @@ plot_gene_track <- function(genes, exons, meta, candidate_id, candidate_label, h
               fill = 'white', linewidth = 0, label.padding = unit(0.1, 'lines')) +
     scale_color_manual(values = c(`TRUE` = highlight_color, `FALSE` = 'grey65')) +
     scale_fill_manual(values = c(`TRUE` = highlight_color, `FALSE` = 'grey65')) +
-    scale_x_continuous(name = str_c('Chr', chrom_label, ' Position (Mb)'), limits = c(meta$region_lo, meta$region_hi)/1e6, expand = expansion(mult = 0.015)) +
+    scale_x_continuous(name = str_c('Chromosome', chrom_label, ' Position (Mb)'), limits = c(meta$region_lo, meta$region_hi)/1e6, expand = expansion(mult = 0.015)) +
     scale_y_continuous(name = NULL, limits = c(-2.0, 2.0), breaks = NULL) +
     theme_use +
     theme(axis.line.y.left = element_blank())
 }
 
-plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_label, colors, candidate_id)
+plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_label, colors, candidate_id, pval = NULL)
 {
   labs <- str_split(geno_col, ':')[[1]][3:4]
   if(!file.exists(expr_path))
@@ -197,22 +112,51 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
     left_join(marker_tbl, by = 'genotype') %>%
     filter(!is.na(.data[[geno_col]]))
 
-  ggplot(expr, aes(.data[[geno_col]], tpm, fill = .data[[geno_col]])) +
+  p <- ggplot(expr, aes(.data[[geno_col]], log2(tpm), fill = .data[[geno_col]])) +
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
-    scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)')) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
     labs(title = short_label) +
     theme_use
+
+  r <- range(log2(expr$tpm), na.rm = TRUE); pad <- diff(r) * 0.20
+  if (is.null(pval))
+  {
+    p + scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), expand = expansion(mult = c(0.05, 0.10)), limits = c(0, r[2] + pad)) +
+      theme(axis.title.y = element_markdown())
+  }
+  else
+  {
+    y_bracket <- r[2] + pad * 0.45; tick <- pad * 0.15
+    p +
+      annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
+              y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
+              linewidth = 0.4) +
+      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+      scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), limits = c(0, r[2] + pad)) + 
+      theme(axis.title.y = element_markdown())
+  }
 }
 
-load_marker_pvals <- function(path)
+plot_disease_blue <- function(human_score_blue, geno_col, short_label, colors, pval)
 {
-  read_csv(path, show_col_types = FALSE) %>%
-    mutate(environment = recode(group, Nebraska2025 = 'NE', `Nebraska2025-Common` = 'NE-C',
-                                Alabama2025 = 'AL', Georgia2025 = 'GA')) %>%
-    dplyr::select(environment, p_value) %>%
-    deframe()
+  labs <- str_split(geno_col, ':')[[1]][3:4]
+  df <- human_score_blue %>% filter(!is.na(.data[[geno_col]]))
+
+  r <- range(df$human_score_blue, na.rm = TRUE); pad <- diff(r) * 0.20
+  y_bracket <- r[2] + pad * 0.45; tick <- pad * 0.15
+
+  ggplot(df, aes(.data[[geno_col]], human_score_blue, fill = .data[[geno_col]])) +
+    geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
+    annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
+            y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
+            linewidth = 0.4) +
+    annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+    scale_x_discrete(name = NULL, labels = labs) +
+    scale_y_continuous(name = 'Human Disease Score', limits = c(r[1] - pad * 0.1, r[2] + pad)) +
+    scale_fill_manual(values = colors, labels = labs, guide = 'none') +
+    labs(title = short_label) +
+    theme_use
 }
 
 ## ---- assemble one locus half ----------------------------------------------
@@ -231,26 +175,21 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
   p_man <- plot_region_manhattan(gwas, meta, highlight_color)
   p_ld <- plot_r2_manhattan(ld, meta, highlight_color)
   p_gene <- plot_gene_track(genes, exons, meta, candidate_id, candidate_label, highlight_color, chrom_label)
-  p_expr <- plot_candidate_expression(str_c(prefix, '_candidate_expression.csv'), marker_col, lead_marker_genotypes, short_label, allele_colors, candidate_id)
 
-  # plotAssociationStability() captures `marker` via base substitute()/{{ }}, which only
-  # works for a bare/backtick symbol known at write time; rlang::inject() + sym() lets us
-  # pass in the runtime-determined marker column name (e.g. "4:4724594:G:C") in its place.
-  human_scores_marker <- human_scores %>% filter(!is.na(.data[[marker_col]]))
-  marker_pvals <- load_marker_pvals(str_c(prefix, '_ja_score_significance.csv'))
-  p_disease <- rlang::inject(
-    plotAssociationStability(human_scores_marker, human_score, !!rlang::sym(marker_col),
-                             colors = allele_colors,
-                             trait_name = 'Human Disease\nSeverity Score',
-                             marker_name = as.character(meta$peak_marker),
-                             pvals = marker_pvals)
-  )
-  p_disease <- p_disease +
-    theme(legend.key.size = unit(0.3, 'cm'),
-         legend.text = element_text(size = 9, color = 'black'),
-         legend.title = element_text(size = 9, color = 'black'),
-         legend.margin = margin(0, 0, 0, 0),
-         legend.box.margin = margin(0, 0, -4, 0))
+  # chr*_candidate_tpm_significance.csv currently carries a single group == "all" row (TPM
+  # expression isn't split by field environment the way disease scores are -- there's only
+  # one candidate-expression dataset), so fall back to it when a Nebraska2025-labeled row
+  # isn't present
+  tpm_sig_path <- str_c(prefix, '_candidate_tpm_significance.csv')
+  tpm_pval <- if (file.exists(tpm_sig_path)) {
+    tpm_sig <- read_csv(tpm_sig_path, show_col_types = FALSE)
+    if ('Nebraska2025' %in% tpm_sig$group) filter(tpm_sig, group == 'Nebraska2025')$p_value[1] else tpm_sig$p_value[1]
+  } else NULL
+  p_expr <- plot_candidate_expression(str_c(prefix, '_candidate_expression.csv'), marker_col, lead_marker_genotypes, short_label, allele_colors, candidate_id, tpm_pval)
+
+  disease_pval <- read_csv(str_c(prefix, '_ja_score_significance.csv'), show_col_types = FALSE) %>%
+    filter(group == 'Nebraska2025') %>% pull(p_value)
+  p_disease <- plot_disease_blue(human_score_blue, marker_col, short_label, allele_colors, disease_pval)
 
   row4 <- plot_grid(p_expr, p_disease, nrow = 1)
   plot_grid(p_man, p_ld, p_gene, row4, ncol = 1, align = 'v', axis = 'lr',
@@ -262,21 +201,14 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
 lead_marker_genotypes <- read_csv('lead_marker_genotypes.csv', show_col_types = FALSE)
 lead_marker_cols <- list(chr4 = names(lead_marker_genotypes)[2], chr9 = names(lead_marker_genotypes)[3])
 
-genotypes_common <- read_csv('genotypes_common.csv', show_col_types = FALSE)
-human_scores_raw <- read_csv('human_disease_scores.csv', show_col_types = FALSE)
-nec_scores <- filter(human_scores_raw, environment == 'Nebraska2025' & (genotype %in% genotypes_common$genotype)) %>%
-  mutate(environment = 'Nebraska2025-Common')
-human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
-  mutate(environment = factor(environment,
-                              levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'),
-                              labels = c('NE', 'NE-C', 'AL', 'GA'))) %>%
+human_score_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
   left_join(lead_marker_genotypes, join_by(genotype), relationship = 'many-to-one')
 
 chr4_colors <- paletteer_d('RColorBrewer::Paired')[c(4, 3)]
 chr9_colors <- paletteer_d('RColorBrewer::Paired')[c(8, 7)]
 
-left_col <- build_locus_column('chr4', '04', 'Sobic.004G058000', 'VQ (Sobic.004G058000)', '#2E7D32FF', chr4_colors)
-right_col <- build_locus_column('chr9', '09', 'Sobic.009G249900', 'JAR1 (Sobic.009G249900)', '#B15928FF', chr9_colors)
+left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G058000', 'Sobic.004G058000', '#2E7D32FF', chr4_colors)
+right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249900', '#B15928FF', chr9_colors)
 
 ja_hotspots <- plot_grid(left_col, right_col, ncol = 2, labels = c('A', 'B'))
-ggsave('ja_hotspots.svg', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
+ggsave('ja_hotspots.png', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)

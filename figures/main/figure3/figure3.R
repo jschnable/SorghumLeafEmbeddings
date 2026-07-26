@@ -136,8 +136,8 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
         scale_fill_manual(values = c('black', 'darkgrey'), 
                           guide = 'none') +
         scale_color_manual(values = colors[1:(length(colors) - 1)]) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_upper - 1.25*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_lower + 1.25*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]*0.75, y = ylim_upper - 4*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]*0.75, y = ylim_lower + 4*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
         theme_use
     }
     else
@@ -161,8 +161,8 @@ plotHotspots <- function(.data, sig, species ='sorghum', chr=CHROM, pos=POS, chr
         scale_fill_manual(values = c('black', 'darkgrey'), 
                           guide = 'none') +
         scale_color_manual(values = colors) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_upper - 1.25*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
-        annotate('text', x = chromLength$max_bp[1]/2, y = ylim_lower + 1.25*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]*0.75, y = ylim_upper - 4*axis_gap_y, label = mirror_labels[['t']], size.unit = 'pt', size = 9) + 
+        annotate('text', x = chromLength$max_bp[1]*0.75, y = ylim_lower + 4*axis_gap_y, label = mirror_labels[['b']], size.unit = 'pt', size = 9) + 
         theme_use
     }
   }
@@ -304,11 +304,10 @@ plotAssociationStability <- function(.data, trait, marker, colors = c('blue', 'r
   return(plot)
 }
 
-embedding_hotspots <- read_csv('sam3_peaks_ge10_embeddings.csv') %>% 
-  add_column(hotspot_code = c('2', '4a', '4b', '4c', '4d', '4e', '6a', '6b', '6c', '9a', '9b', '9c'), 
-             disease_linked = c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE))
+embedding_hotspots <- read_csv('hotspot_master.csv') %>% 
+  add_column(hotspot_code = c('2', '4a', '4b', '4c', '4d', '4e', '6a', '6b', '6c', '9a', '9b', '9c'))
 
-disease_embedding_hotspots <- embedding_hotspots$hotspot_code[embedding_hotspots$disease_linked]
+disease_embedding_hotspots <- embedding_hotspots$hotspot_code[embedding_hotspots$disease_associated=='Y']
 
 hotspots_sam3 <- read_csv('sam3_hits_per_100kb.csv') %>% 
   mutate(hotspot_code = NA)
@@ -348,20 +347,17 @@ hotspot_plot <- plotHotspots(.data = hotspots_sam3, sig = n_distinct_hits, speci
 hotspot_plot
 # loci to annotate 
 # pos is gene start_bp
-hotspot_master <- read_csv('hotspot_master_table.csv')
 chromLength <- tibble(max_bp = c(85112863, 79114963, 80873341, 71215609, 77058072, 
                                  62713908, 68911884, 65779274, 63277606, 62870657), 
                       CHROM = 1:10) %>% 
   arrange(CHROM) %>%
   mutate(bp_add = lag(cumsum(max_bp), default = 0) + (CHROM - 1)*0)
 loci_annotate <- embedding_hotspots %>% 
-  mutate(candidate = hotspot_master$candidate_gene_model, 
-         name = c(NA, NA, NA, 'Tan1', NA, NA, 'Dw2', 'Dry', 'P', NA, 'Dw1', NA)) %>% 
   left_join(chromLength, join_by(chrom==CHROM)) %>% 
-  mutate(loc = top_marker_pos + bp_add)
+  mutate(loc = peak_marker_pos_bp + bp_add)
 
 hotspot_plot_annotated <- hotspot_plot + 
-  annotate('text', x = loci_annotate$loc, y = loci_annotate$max_sam3_embeddings + 5, label = loci_annotate$name, size.unit = 'pt', size = 9) + 
+  annotate('text', x = loci_annotate$loc, y = loci_annotate$max_sam3_hit_density + 10, label = loci_annotate$candidate_gene_short_name, size.unit = 'pt', size = 9) + 
   theme(legend.position = 'none')
 hotspot_plot_annotated
 

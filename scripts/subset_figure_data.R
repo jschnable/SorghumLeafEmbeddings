@@ -2,7 +2,7 @@ library(tidyverse)
 library(reticulate)
 library(jsonlite)
 library(VariantAnnotation)
-use_condaenv("jupyterlab-debugger", required = TRUE)
+use_condaenv("jupyterlab-debugger-arm", required = TRUE)
 np <- reticulate::import("numpy")
 
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
@@ -301,6 +301,29 @@ write_csv(lead_geno, file.path(ja_dir, 'lead_marker_genotypes.csv'))
 file.copy('data/provided/human_disease_scores.csv', file.path(ja_dir, 'human_disease_scores.csv'), overwrite = TRUE)
 file.copy('figures/main/figure3/genotypes_common.csv', file.path(ja_dir, 'genotypes_common.csv'), overwrite = TRUE)
 
+# human disease score BLUE, Nebraska2025 only, for the bottom-row disease panels (these now
+# show only the lead-marker effect on the NE2025 BLUE, not the raw-score multi-environment
+# bar chart) -- same BLUE source and Nebraska2025-only scope as figures/supplemental/lysm_hotspot
+read_csv('figures/main/figure3/blues_allsites_human_scores.csv', show_col_types = FALSE) %>%
+  filter(environment == 'Nebraska2025') %>%
+  dplyr::select(genotype, human_score_blue = human_score) %>%
+  write_csv(file.path(ja_dir, 'human_score_blue_nebraska.csv'))
+
+# refresh the per-locus significance file down to its Nebraska2025 row only (source: the
+# canonical hotspot_disease_associations human_score significance run, same LOCO-MLM pipeline
+# as lysm_hotspot's peak_marker_nebraska_significance.csv -- note the canonical chr4 file is
+# named with a "chr4:" prefix while the chr9 one uses the bare chromosome number). ref/alt
+# forced to character: a lone "T"/"F" ref/alt column otherwise parses as logical.
+sig_col_types <- cols(ref = col_character(), alt = col_character())
+read_csv('data/generatable/hotspot_disease_associations/human_scores/chr4:4724594:G:C_score_significance.csv',
+        col_types = sig_col_types) %>%
+  filter(group == 'Nebraska2025') %>%
+  write_csv(file.path(ja_dir, 'chr4_ja_score_significance.csv'))
+read_csv('data/generatable/hotspot_disease_associations/human_scores/9:62301540:T:A_score_significance.csv',
+        col_types = sig_col_types) %>%
+  filter(group == 'Nebraska2025') %>%
+  write_csv(file.path(ja_dir, 'chr9_ja_score_significance.csv'))
+
 # candidate-gene leaf expression (log2 TPM+1) by lead-marker allele, for the panel-4
 # boxplots. NE2021 field-trial samples only (experiment=='SG2021'; see
 # data/externalsourcerequired/tpm/sorghum_rnaseq_methods.md -- SG2021 is entirely leaf
@@ -429,6 +452,54 @@ for(f in c('gene_models.csv', 'gene_exons.csv', 'meta.json', 'mlm_pvalues.json',
 
 file.copy('data/provided/human_disease_scores.csv', file.path(lysm_dir, 'human_disease_scores.csv'), overwrite = TRUE)
 file.copy('figures/main/figure3/genotypes_common.csv', file.path(lysm_dir, 'genotypes_common.csv'), overwrite = TRUE)
+
+# local LD track (r2 of every region marker vs the lead marker, all 925 lines) for the
+# panel-A local-LD plot -- compute_lysm_panels.py never produced one (unlike the
+# compute_*_peak.py scripts backing ja_hotspots/gdsl_hotspots), so it's computed here
+# directly from the tabix-indexed VCF via VariantAnnotation (already loaded above), same
+# r2-to-lead definition used in ja_hotspots.R / gdsl_hotspots.R's ld_track.csv inputs.
+lysm_meta <- fromJSON(file.path(lysm_dir, 'meta.json'))
+lysm_region <- GRanges(seqnames = lysm_meta$region_chrom,
+                       ranges = IRanges(start = 1700000, end = lysm_meta$region_hi))
+lysm_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = lysm_region, geno = 'GT'))
+lysm_gt <- geno(lysm_vcf)$GT
+lysm_dose <- matrix(NA_real_, nrow = nrow(lysm_gt), ncol = ncol(lysm_gt))
+lysm_dose[lysm_gt %in% c('0/0', '0|0')] <- 0
+lysm_dose[lysm_gt %in% c('0/1', '0|1', '1/0', '1|0')] <- 1
+lysm_dose[lysm_gt %in% c('1/1', '1|1')] <- 2
+lysm_pos <- start(rowRanges(lysm_vcf))
+lysm_keep <- rowSums(!is.na(lysm_dose)) >= 50
+lysm_dose <- lysm_dose[lysm_keep, , drop = FALSE]; lysm_pos <- lysm_pos[lysm_keep]
+lysm_dose_filled <- t(apply(lysm_dose, 1, function(r) { r[is.na(r)] <- mean(r, na.rm = TRUE); r }))
+lysm_lead_i <- which(lysm_pos == lysm_meta$peak_marker)
+lysm_z <- (lysm_dose_filled - rowMeans(lysm_dose_filled)) / apply(lysm_dose_filled, 1, sd)
+lysm_r2 <- as.numeric((lysm_z %*% lysm_z[lysm_lead_i, ]) / ncol(lysm_z)) ^ 2
+tibble(POS = lysm_pos, r2 = lysm_r2) %>% drop_na() %>% write_csv(file.path(lysm_dir, 'ld_track.csv'))
+
+# panel C rebuild inputs: peak-marker (Chr09:1,768,703) effect on human disease score and
+# ExG logit BLUEs, Nebraska2025 only -- BLUE phenotypes + precomputed LOCO-MLM marker
+# significance (same standalone hotspot_disease_associations pipeline already run for every
+# marker in the disease hotspot survey), rather than the raw-score/repr_traits means used in
+# box_data.csv's human_score/disease_exg columns.
+read_csv('figures/main/figure3/blues_allsites_human_scores.csv', show_col_types = FALSE) %>%
+  filter(environment == 'Nebraska2025') %>%
+  dplyr::select(genotype, human_score_blue = human_score) %>%
+  write_csv(file.path(lysm_dir, 'human_score_blue_nebraska.csv'))
+
+read_csv('data/generatable/blues/nebraska_exg/blues_Nebraska2025.csv', show_col_types = FALSE) %>%
+  dplyr::select(genotype, exg_logit_blue = ExG_P20_disease_pct) %>%
+  write_csv(file.path(lysm_dir, 'exg_logit_blue_nebraska.csv'))
+
+bind_rows(
+  read_csv('data/generatable/hotspot_disease_associations/human_scores/9:1768703:G:T_score_significance.csv',
+          show_col_types = FALSE) %>%
+    filter(group == 'Nebraska2025') %>% mutate(phenotype = 'human_score'),
+  read_csv('data/generatable/hotspot_disease_associations/exg/9:1768703:G:T_exg_significance.csv',
+          show_col_types = FALSE) %>%
+    filter(group == 'Nebraska2025') %>% mutate(phenotype = 'exg_logit')
+) %>%
+  dplyr::select(phenotype, p_value, effect_alt_allele) %>%
+  write_csv(file.path(lysm_dir, 'peak_marker_nebraska_significance.csv'))
 
 exg_pmap <- read_csv('data/generatable/gwas/exg/traits/ExG_P20_disease_pct_marker_pvalues.csv')
 exg_pmap <- as.matrix(exg_pmap)

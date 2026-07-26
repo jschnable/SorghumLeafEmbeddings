@@ -1,0 +1,2 @@
+predictor,predictor_chrom_loco,phenotype_column,n_observations,predictor_mean,predictor_sd,phenotype_mean,phenotype_sd,effect,se,p_value,standardized_effect,effect_direction,lrt_refined,status
+G019100_tpm,9,human_score,464,5.222148587164751,3.760191756973152,1.938469827586207,0.6468555031485858,-0.0015318988079936946,0.008011066717245793,0.848435947395511,-0.002368224125074515,decreases,False,tested

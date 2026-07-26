@@ -4,12 +4,12 @@
 # figures/supplemental/ja_hotspots/ja_hotspots.R.
 #
 # Panel A: Manhattan of the 12 chr9:1.7 peak embedding dimensions that reach genome-wide
-#   significance in this window, with the gene-model track below (candidate gene in red).
-# Panel B: peak (lead) marker Chr09:1,768,703 -> Sobic.009G019100 leaf expression (TPM),
+#   significance in this window, with a local-LD track (r2 to the lead marker, all 925
+#   lines) and the gene-model track below (candidate gene in red).
+# Panel B: peak (lead) marker 9:1768703 -> Sobic.009G019100 leaf expression (TPM),
 #   by allele.
-# Panel C: mean human disease score (+/- SE) by environment (NE, NE-C, AL, GA), by allele at
-#   both the lead marker (Chr09:1,768,703) and the independent frameshift LOF marker
-#   (Chr09:1,754,173), fill-coded REF (lead) / REF (LOF) / ALT (lead) / ALT (LOF).
+# Panel C: peak (lead) marker 9:1768703 -> human disease score BLUE and ExG logit
+#   disease BLUE, Nebraska2025 only, by allele (no LOF marker, no other environments).
 #
 # All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
 library(tidyverse)
@@ -39,10 +39,13 @@ CAND_C <- '#c0392b'
 GUIDE <- '#333333'
 GREY <- '#9aa0a6'
 C_EXPR <- '#8e6fb0'
+C_HUMAN <- '#4c78a8'
+C_EXG <- '#4c9f70'
 LO <- 1700000; HI <- 1850000
 EXPR_CAP <- 20.0
 
 reg <- read_csv('region_gwas.csv', show_col_types = FALSE)
+ld <- read_csv('ld_track.csv', show_col_types = FALSE)
 genes <- read_csv('gene_models.csv', show_col_types = FALSE) %>% mutate(gene_id = str_trim(gene_id))
 exons <- read_csv('gene_exons.csv', show_col_types = FALSE) %>% mutate(gene_id = str_trim(gene_id))
 box <- read_csv('box_data.csv', show_col_types = FALSE)
@@ -80,6 +83,22 @@ p_man <- ggplot(regw, aes(POS / 1e6, -log10(p_value), color = trait)) +
        legend.text = element_text(size = 6.5), legend.background = element_blank(),
        legend.margin = margin(0, 0, 0, 0), legend.spacing.x = unit(0.05, 'cm'))
 
+## ---- local LD (r2 to lead marker) -------------------------------------------
+
+ldw <- ld %>% filter(POS >= LO, POS <= HI) %>%
+  mutate(tier = case_when(r2 > 0.5 ~ 'high', r2 > 0.3 ~ 'mid', TRUE ~ 'low'))
+
+p_ld <- ggplot(ldw, aes(POS / 1e6, r2, color = tier)) +
+  ggrastr::rasterise(geom_point(size = 0.5, show.legend = FALSE), dpi = 600) +
+  geom_hline(yintercept = c(0.3, 0.5), linetype = 'dotted', color = 'grey50', linewidth = 0.3) +
+  geom_vline(xintercept = PEAK / 1e6, linetype = 'dotted', color = GUIDE, linewidth = 0.5) +
+  scale_x_continuous(name = NULL, limits = c(LO, HI) / 1e6, expand = c(0, 0)) +
+  scale_y_continuous(name = expression(italic(r)^2~to~lead), limits = c(-0.04, 1.08),
+                    breaks = c(0, 0.5, 1), expand = c(0, 0)) +
+  scale_color_manual(values = c(high = '#C0392BFF', mid = '#E0843BFF', low = 'grey65'), guide = 'none') +
+  theme_use +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
 ## ---- gene track (forward + reverse strand tracks; candidate in red) -------
 
 genes <- genes %>% mutate(row = if_else(strand == '+', 1, -1), is_candidate = gene_id == CAND)
@@ -97,7 +116,7 @@ p_gene <- ggplot() +
             fill = 'white', linewidth = 0, label.padding = unit(0.1, 'lines')) +
   scale_color_manual(values = c(`TRUE` = CAND_C, `FALSE` = GREY)) +
   scale_fill_manual(values = c(`TRUE` = CAND_C, `FALSE` = GREY)) +
-  scale_x_continuous(name = 'Chr09 position (Mb)', limits = c(LO, HI) / 1e6, expand = expansion(mult = 0.01)) +
+  scale_x_continuous(name = 'Chromosome 9 Position (Mb)', limits = c(LO, HI) / 1e6, expand = expansion(mult = 0.01)) +
   scale_y_continuous(name = NULL, limits = c(-2.0, 2.0), breaks = NULL) +
   theme_use +
   theme(axis.line.y.left = element_blank())
@@ -130,7 +149,7 @@ single_points <- function(vals, dose, alleles, jitter_w = 0.09, seed = 0) {
   })
 }
 
-PEAK_ALLELES <- list(`G/G` = 0, `T/T` = 2)
+PEAK_ALLELES <- list(`G` = 0, `T` = 2)
 
 ## ---- panel B: lead marker -> candidate expression (TPM), by allele --------
 
@@ -143,59 +162,51 @@ p_B <- ggplot(exprB, aes(x = x, y = value, group = x)) +
   geom_boxplot(width = 0.5, outlier.shape = NA, alpha = 0.55, fill = C_EXPR, linewidth = 0.5) +
   geom_point(aes(x = x_jit), color = C_EXPR, size = 0.6, alpha = 0.45) +
   bracket_layers(x_b[1], x_b[2], ybr_b, fmt_p(pv$C_peak_expr$p), tick_b) +
-  scale_x_continuous(name = 'Chr09:1,768,703', limits = c(0.45, 2.55),
+  scale_x_continuous(name = '9:1768703', limits = c(0.45, 2.55),
                     breaks = x_b, labels = names(PEAK_ALLELES)) +
-  scale_y_continuous(name = paste0(CAND, '\nleaf expression (TPM)'), limits = rb, expand = c(0, 0)) +
+  scale_y_continuous(name = paste0(CAND, '\nExpression (TPM)'), limits = rb, expand = c(0, 0)) +
   theme_use +
   theme(axis.text.x = element_text(size = 6.8), axis.title.x = element_text(size = 7.5),
        axis.title.y = element_text(size = 8))
 
-## ---- panel C: mean human disease score by environment, by allele ----------
-## at both the lead marker and the independent LOF marker (fill = 4 allele groups)
+## ---- panel C: peak marker -> human disease score & ExG logit BLUEs --------
+## Nebraska2025 only; lead marker 9:1768703 only (no LOF marker, no other sites)
 
-human_scores_raw <- read_csv('human_disease_scores.csv', show_col_types = FALSE)
-genotypes_common <- read_csv('genotypes_common.csv', show_col_types = FALSE)
+human_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
+  left_join(dplyr::select(box, genotype, peak_dose), by = 'genotype')
+exg_blue <- read_csv('exg_logit_blue_nebraska.csv', show_col_types = FALSE) %>%
+  left_join(dplyr::select(box, genotype, peak_dose), by = 'genotype')
+peak_sig <- read_csv('peak_marker_nebraska_significance.csv', show_col_types = FALSE) %>%
+  dplyr::select(phenotype, p_value) %>% deframe()
 
-nec_scores <- human_scores_raw %>%
-  filter(environment == 'Nebraska2025' & genotype %in% genotypes_common$genotype) %>%
-  mutate(environment = 'Nebraska2025-Common')
-human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
-  mutate(environment = factor(environment,
-                              levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'),
-                              labels = c('NE', 'NE-C', 'AL', 'GA'))) %>%
-  left_join(dplyr::select(box, genotype, peak_dose, lof_dose), by = 'genotype')
+peak_pheno_panel <- function(df, value_col, color, ylab, pval) {
+  pts <- single_points(df[[value_col]], df$peak_dose, PEAK_ALLELES)
+  r <- pad_range(pts$value); ybr <- r[1] + 0.90 * diff(r); tick <- 0.045 * diff(r)
+  x <- sort(unique(pts$x))
+  ggplot(pts, aes(x = x, y = value, group = x)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA, alpha = 0.55, fill = color, linewidth = 0.5) +
+    geom_point(aes(x = x_jit), color = color, size = 0.6, alpha = 0.45) +
+    bracket_layers(x[1], x[2], ybr, fmt_p(pval), tick) +
+    scale_x_continuous(name = '9:1768703', limits = c(0.45, 2.55),
+                      breaks = x, labels = names(PEAK_ALLELES)) +
+    scale_y_continuous(name = ylab, limits = r, expand = c(0, 0)) +
+    theme_use +
+    theme(axis.text.x = element_text(size = 6.8), axis.title.x = element_text(size = 7.5),
+         axis.title.y = element_text(size = 8))
+}
 
-GROUP_LEVELS <- c('REF (lead)', 'REF (LOF)', 'ALT (lead)', 'ALT (LOF)')
-group_colors <- setNames(paletteer_d('RColorBrewer::Paired')[c(1, 3, 2, 4)], GROUP_LEVELS)
-
-lead_rows <- human_scores %>% filter(peak_dose %in% c(0, 2)) %>%
-  mutate(group = if_else(peak_dose == 0, 'REF (lead)', 'ALT (lead)'))
-lof_rows <- human_scores %>% filter(!is.na(lof_dose)) %>%
-  mutate(group = if_else(lof_dose == 0, 'REF (LOF)', 'ALT (LOF)'))
-
-disease_by_env <- bind_rows(lead_rows, lof_rows) %>%
-  filter(!is.na(human_score)) %>%
-  mutate(group = factor(group, levels = GROUP_LEVELS)) %>%
-  group_by(environment, group) %>%
-  summarise(mean = mean(human_score), se = sd(human_score) / sqrt(n()), .groups = 'drop')
-
-p_C <- ggplot(disease_by_env, aes(environment, mean, fill = group)) +
-  geom_col(position = position_dodge(width = 0.85), width = 0.8, color = 'black', linewidth = 0.3) +
-  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), position = position_dodge(width = 0.85),
-               width = 0.25, linewidth = 0.4) +
-  scale_x_discrete(name = NULL) +
-  scale_y_continuous(name = 'human disease score', expand = expansion(mult = c(0, 0.08))) +
-  scale_fill_manual(name = NULL, values = group_colors) +
-  theme_use +
-  theme(legend.key.size = unit(0.3, 'cm'), legend.text = element_text(size = 7.5),
-       legend.margin = margin(0, 0, 0, 0), legend.box.margin = margin(0, 0, -4, 0))
+p_C_human <- peak_pheno_panel(human_blue, 'human_score_blue', C_HUMAN,
+                              'Human Disease Score', peak_sig[['human_score']])
+p_C_exg <- peak_pheno_panel(exg_blue, 'exg_logit_blue', C_EXG,
+                            'logit(Percent Unhealthy Leaf Tissue)', peak_sig[['exg_logit']])
+p_C <- plot_grid(p_C_human, p_C_exg, nrow = 1)
 
 ## ---- assemble ---------------------------------------------------------------
 
-top <- plot_grid(p_man, p_gene, ncol = 1, align = 'v', axis = 'lr', rel_heights = c(2.1, 1.0))
-bottom <- plot_grid(p_B, p_C, nrow = 1, rel_widths = c(0.85, 1.4),
+top <- plot_grid(p_man, p_ld, p_gene, ncol = 1, align = 'v', axis = 'lr', rel_heights = c(2.1, 0.9, 1.0))
+bottom <- plot_grid(p_B, p_C, nrow = 1, rel_widths = c(0.85, 1.8),
                     labels = c('B', 'C'), label_size = 11)
-lysm_hotspot <- plot_grid(top, bottom, ncol = 1, rel_heights = c(1.55, 1),
+lysm_hotspot <- plot_grid(top, bottom, ncol = 1, rel_heights = c(1.9, 1),
                           labels = c('A', ''), label_size = 11)
 
-ggsave('lysm_hotspot.png', plot = lysm_hotspot, dpi = 300, bg = 'white', width = 6.5, height = 7.2)
+ggsave('lysm_hotspot.png', plot = lysm_hotspot, dpi = 300, bg = 'white', width = 7.0, height = 8.0)
