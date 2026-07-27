@@ -1,0 +1,36 @@
+{
+  "phenotype_csv": "figures/chr4_pme_peak/color_size_pergeno.csv",
+  "phenotype_column": "a_mean",
+  "log2": false,
+  "genotype_column": "genotype",
+  "env_column": null,
+  "env": null,
+  "group_column": null,
+  "exclude_list": null,
+  "common_genotypes_list": null,
+  "marker_argument": "4:60556616",
+  "selected_marker": {
+    "MARKER": "4:60556616:TC:T",
+    "CHROM": "4",
+    "POS": 60556616,
+    "SNP": "4:60556616:TC:T",
+    "REF": "TC",
+    "ALT": "T"
+  },
+  "genotype": "/home/schnable/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype_format": "vcf",
+  "n_groups": 1,
+  "n_tested": 1,
+  "n_pcs": 5,
+  "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs as covariates, forced LRT refinement",
+  "lrt_refinement": true,
+  "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",
+  "min_samples": 30,
+  "min_homozygote_count": 3,
+  "elapsed_seconds": 27.180878137005493,
+  "package_versions": {
+    "panicle": "0.3.4",
+    "numpy": "2.4.2",
+    "pandas": "3.0.2"
+  }
+}

@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+all,6:58476610:G:A,6,58476610,G,A,ExG_P20_disease_pct,896,896,853,3,40,-6.161472158488863,1.5423515670307621,-0.26796251781227126,0.12411714763698858,0.03112112096657855,-0.1737363410134408,-0.3474726820268816,decreases,tested,

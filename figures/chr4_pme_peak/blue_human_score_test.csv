@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+all,4:60556616:TC:T,4,60556616,TC,T,human_score,896,896,743,9,144,2.274616780859188,0.5006191971453346,0.07773708919541586,0.023668042360665876,0.0010616579796661006,0.15528187819942516,0.3105637563988503,increases,tested,

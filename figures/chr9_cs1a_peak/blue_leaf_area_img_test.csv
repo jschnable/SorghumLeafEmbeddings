@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+all,9:60857595:C:T,9,60857595,C,T,leaf_area_img,891,891,650,7,234,3610731.690532952,691598.2926754967,91991.66502681984,24371.925248556792,0.00016456088806373787,0.13301314650581858,0.26602629301163716,increases,tested,

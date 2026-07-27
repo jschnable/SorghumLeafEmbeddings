@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+all,4:4724594:G:C,4,4724594,G,C,b_sd,895,895,847,3,45,2.947315502164163,0.5694800031866092,-0.0151684940340306,0.045720531462973425,0.7401446381006095,-0.02663569212115098,-0.05327138424230196,decreases,tested,

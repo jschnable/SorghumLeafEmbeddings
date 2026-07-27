@@ -32,14 +32,13 @@ pheno = pd.DataFrame({
     "human_score": g.human_score.mean(),
     "disease_exg": g.disease_exg.mean(),
     "disease_exg_CV": g.disease_exg.std() / g.disease_exg.mean().abs(),
-    "pct": g.pct.mean(),
     "leaf_area_img": g.estimated_leaf_area.mean(),
     "mask_pixels_img": g.mask_pixels.mean(),
 })
 color = pd.read_csv("figures/chr4_ggpps_peak/box_data.csv").set_index("genotype")[["b_mean", "a_mean", "L_mean", "b_sd", "L_sd", "gloss"]]
 cov = pd.read_csv("data/provided/gwas_covariates_leaf_area_flowering_time.csv").set_index("genotype")[["mask_pixels_blue"]]
 P = pheno.join(color).join(cov)
-GROUPS = {"disease": ["human_score", "disease_exg", "disease_exg_CV", "pct"],
+GROUPS = {"disease": ["human_score", "disease_exg", "disease_exg_CV"],
           "color":   ["b_mean", "a_mean", "L_mean", "b_sd", "L_sd", "gloss"],
           "size":    ["leaf_area_img", "mask_pixels_img", "mask_pixels_blue"]}
 
