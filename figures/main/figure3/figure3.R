@@ -419,11 +419,20 @@ human_scores <- read_csv('blues_allsites_human_scores.csv') %>%
                               levels = c('Nebraska2025'), 
                               labels = c('NE'))) %>% 
   left_join(vcf, join_by(genotype), relationship = 'many-to-one')
-tan1_scores <- plotAssociationStability(human_scores, human_score, `4:64959396:G:A`, colors = paletteer_d('MoMAColors::Abbott')[3:4], trait_name = 'Human Disease\nSeverity Score', marker_name = 'Tan1 Peak Marker')
+tan1_scores_panicle <- read_csv('tan1_score_significance.csv')[1:4, ] %>% 
+  mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
+  dplyr::select(environment, p_value) %>% 
+  deframe()
+tan1_scores <- plotAssociationStability(human_scores, human_score, `4:64959396:G:A`, colors = paletteer_d('MoMAColors::Abbott')[3:4], trait_name = 'Human Disease\nSeverity Score', marker_name = 'Tan1 Peak Marker', pvals = tan1_scores_panicle)
 tan1_scores
+p_locus_scores_panicle <- read_csv('6:58476610:G:A_score_significance.csv')[1:4, ] %>% 
+  mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
+  dplyr::select(environment, p_value) %>% 
+  deframe()
+p_scores <- plotAssociationStability(human_scores, human_score, `6:58476610:G:A`, colors = paletteer_d("RColorBrewer::Paired")[c(10, 9)], trait_name = 'Human Disease\nSeverity Score', marker_name = 'P Locus Peak Marker', pvals = p_locus_scores_panicle)
 
 fig3bottom <- plot_grid(p_locus_hist, p_locus_stability, tan1_hist, tan1_scores, nrow = 1, labels = c('b', 'c', 'd', 'e'), 
-                        rel_widths = c(1, 1, 1, 0.6))
+                        rel_widths = c(1, 1.1, 1, 0.6))
 fig3 <- plot_grid(hotspot_plot_annotated, fig3bottom, nrow = 2, labels = c('a', NULL), rel_heights = c(1, 0.65))
 # Code-generated export only. Published pair is hand-edited figure3.svg + figure3.png
 # (do not overwrite those with this script).

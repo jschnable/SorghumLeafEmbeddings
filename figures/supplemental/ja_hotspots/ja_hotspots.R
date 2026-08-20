@@ -100,7 +100,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
       annotate('text', x = 0, y = 0, label = 'leaf expression\ndata unavailable',
               size = 9, size.unit = 'pt', color = 'grey45', fontface = 'italic', lineheight = 0.9) +
       xlim(-1, 1) + ylim(-1, 1) +
-      labs(title = short_label, y = str_c(candidate_id, ' Expression\n(TPM)')) +
+      labs(title = NULL, y = str_c(candidate_id, ' Expression\n(TPM)')) +
       theme_void() +
       theme(plot.title = element_text(size = 9, color = 'black', hjust = 0.5),
             axis.title.y = element_text(size = 9, color = 'black', angle = 90, margin = margin(r = 4)),
@@ -116,13 +116,13 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
-    labs(title = short_label) +
+    labs(title = NULL) +
     theme_use
 
   r <- range(log2(expr$tpm), na.rm = TRUE); pad <- diff(r) * 0.20
   if (is.null(pval))
   {
-    p + scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), expand = expansion(mult = c(0.05, 0.10)), limits = c(0, r[2] + pad)) +
+    p + scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) +
       theme(axis.title.y = element_markdown())
   }
   else
@@ -133,7 +133,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
               y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
               linewidth = 0.4) +
       annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
-      scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), limits = c(0, r[2] + pad)) + 
+      scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) + 
       theme(axis.title.y = element_markdown())
   }
 }
@@ -161,7 +161,7 @@ plot_disease_blue <- function(human_score_blue, geno_col, short_label, colors, p
 
 ## ---- assemble one locus half ----------------------------------------------
 
-build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_label, highlight_color, allele_colors)
+build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_label, highlight_color, allele_colors, panel_labels)
 {
   gwas <- read_csv(str_c(prefix, '_region_gwas.csv'), show_col_types = FALSE)
   ld <- read_csv(str_c(prefix, '_ld_track.csv'), show_col_types = FALSE)
@@ -191,9 +191,19 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
     filter(group == 'Nebraska2025') %>% pull(p_value)
   p_disease <- plot_disease_blue(human_score_blue, marker_col, short_label, allele_colors, disease_pval)
 
-  row4 <- plot_grid(p_expr, p_disease, nrow = 1)
-  plot_grid(p_man, p_ld, p_gene, row4, ncol = 1, align = 'v', axis = 'lr',
-           rel_heights = c(2.5, 1.0, 1.3, 2.3))
+  # lowercase, bold letter run per column: the Manhattan/LD/gene track stack is one labeled
+  # panel, and the two bottom panels get their own labels -- same nesting cowplot uses in
+  # lysm_hotspot.R for its single-locus 'A' (top) / 'B','C' (bottom) scheme, just extended to
+  # two side-by-side loci (a-c, d-f).
+  # label_x nudges the expression panel's label right of its wrapped two-line y-axis title
+  # (candidate name + "Expression / log2(TPM)"), which is wide enough at the default x = 0
+  # inset to collide with the label text otherwise.
+  row4 <- plot_grid(p_expr, p_disease, nrow = 1, labels = panel_labels[2:3], label_size = 11,
+                    label_x = c(0.13, 0))
+  top_stack <- plot_grid(p_man, p_ld, p_gene, ncol = 1, align = 'v', axis = 'lr',
+                         rel_heights = c(2.5, 1.0, 1.3))
+  plot_grid(top_stack, row4, ncol = 1, align = 'v', axis = 'lr', rel_heights = c(4.8, 2.3),
+           labels = c(panel_labels[1], ''), label_size = 11)
 }
 
 ## ---- shared inputs ---------------------------------------------------------
@@ -207,8 +217,8 @@ human_score_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = F
 chr4_colors <- paletteer_d('RColorBrewer::Paired')[c(4, 3)]
 chr9_colors <- paletteer_d('RColorBrewer::Paired')[c(8, 7)]
 
-left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G058000', 'Sobic.004G058000', '#2E7D32FF', chr4_colors)
-right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249900', '#B15928FF', chr9_colors)
+left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G058000', 'Sobic.004G058000', '#2E7D32FF', chr4_colors, c('a', 'b', 'c'))
+right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249900', '#B15928FF', chr9_colors, c('d', 'e', 'f'))
 
-ja_hotspots <- plot_grid(left_col, right_col, ncol = 2, labels = c('A', 'B'))
+ja_hotspots <- plot_grid(left_col, right_col, ncol = 2)
 ggsave('ja_hotspots.png', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)

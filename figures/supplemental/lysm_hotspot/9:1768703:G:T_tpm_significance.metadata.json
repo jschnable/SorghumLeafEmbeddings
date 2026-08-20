@@ -1,6 +1,7 @@
 {
   "phenotype_csv": "figures/supplemental/lysm_hotspot/box_data.csv",
   "phenotype_column": "G019100_tpm",
+  "log2": true,
   "genotype_column": "genotype",
   "env_column": null,
   "env": null,
@@ -16,7 +17,7 @@
     "REF": "G",
     "ALT": "T"
   },
-  "genotype": "/home/schnable/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype": "/Users/jensinadavis/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
   "genotype_format": "vcf",
   "n_groups": 1,
   "n_tested": 1,
@@ -26,10 +27,10 @@
   "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",
   "min_samples": 30,
   "min_homozygote_count": 3,
-  "elapsed_seconds": 23.07001237012446,
+  "elapsed_seconds": 35.156675083000664,
   "package_versions": {
-    "panicle": "0.3.4",
-    "numpy": "2.4.2",
-    "pandas": "3.0.2"
+    "panicle": "0.3.5",
+    "numpy": "2.4.6",
+    "pandas": "3.0.3"
   }
 }

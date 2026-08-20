@@ -2,7 +2,8 @@
 """Run a single-marker PhWAS against sorghum trait/environment phenotypes.
 
 The association model mirrors scripts/run_gwas_panicle.py: PANICLE LOCO MLM
-with five genotype PCs and LRT refinement.
+with five genotype PCs, the same mask_pixels_blue/days_to_flower_blue
+genotype-level covariates (z-scored), and LRT refinement.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TRAIT_ZIP = REPO_ROOT / "data" / "externalsourcerequired" / "sorghum_trait_data_v2.2.zip"
 DEFAULT_GENOTYPE = REPO_ROOT / "data" / "externalsourcerequired" / "vcf" / "sorghum_925genotypes_filtered_v3.vcf.gz"
 DEFAULT_OUT = REPO_ROOT / "data" / "generatable" / "phwas"
+DEFAULT_COVARIATE_FILE = REPO_ROOT / "data" / "provided" / "gwas_covariates_leaf_area_flowering_time.csv"
+DEFAULT_COVARIATE_COLS = "mask_pixels_blue,days_to_flower_blue"
 
 
 def now() -> str:
@@ -128,6 +131,24 @@ def build_phenotype_table(obs: pd.DataFrame, genome_ids: list[str]) -> pd.DataFr
     return pheno
 
 
+def load_covariates(covariate_file: Path, genome_ids: list[str], covariate_cols: list[str]) -> pd.DataFrame:
+    cov = pd.read_csv(covariate_file, usecols=["genotype", *covariate_cols])
+    cov["genotype"] = cov["genotype"].astype(str).str.replace(" ", "", regex=False)
+    cov = cov.groupby("genotype", as_index=False)[covariate_cols].first()
+    cov = cov.set_index("genotype").reindex(genome_ids)
+    return cov[covariate_cols]
+
+
+def zscore_covariates(covariates: pd.DataFrame) -> np.ndarray:
+    values = covariates.to_numpy(dtype=float)
+    means = np.nanmean(values, axis=0)
+    sds = np.nanstd(values, axis=0)
+    if np.any(~np.isfinite(sds)) or np.any(sds == 0):
+        bad = [c for c, sd in zip(covariates.columns, sds) if not np.isfinite(sd) or sd == 0]
+        raise ValueError(f"Covariate columns have zero/non-finite variance after alignment: {bad}")
+    return (values - means) / sds
+
+
 def load_or_compute_pca_loco(
     cache_dir: Path | None,
     geno,
@@ -194,6 +215,8 @@ def run_group(
     geno_map_full,
     genome_ids: list[str],
     sample_indices: np.ndarray,
+    covariates_all: pd.DataFrame | None,
+    covariate_cols: list[str],
     args: argparse.Namespace,
 ) -> dict[str, object]:
     sample_ids = [genome_ids[i] for i in sample_indices]
@@ -208,6 +231,11 @@ def run_group(
         args.cpu,
         args.recompute_cache,
     )
+    if covariates_all is not None:
+        cov_sub = covariates_all.loc[sample_ids, covariate_cols]
+        cv = np.column_stack([pcs, zscore_covariates(cov_sub)])
+    else:
+        cv = pcs
     marker_sub = geno_marker.subset_individuals(sample_indices.tolist())
     y = pheno.loc[sample_ids, combo_names].to_numpy(float)
     return PANICLE_MLM_LOCO_MULTI(
@@ -216,7 +244,7 @@ def run_group(
         map_data=geno_map_marker,
         trait_names=combo_names,
         loco_kinship=loco,
-        CV=pcs,
+        CV=cv,
         maxLine=args.max_line,
         cpu=args.cpu,
         lrt_refinement=True,
@@ -245,6 +273,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trait", action="append", help="Limit to one canonical trait. Can be repeated.")
     parser.add_argument("--env", action="append", help="Limit to one env_id. Can be repeated.")
     parser.add_argument("--max-tests", type=int, help="Debug/smoke-test limit after trait/env filtering.")
+    parser.add_argument(
+        "--covariate-file",
+        type=Path,
+        default=DEFAULT_COVARIATE_FILE,
+        help="Genotype-level covariate CSV, same format/defaults as scripts/run_gwas_panicle.py.",
+    )
+    parser.add_argument(
+        "--covariate-cols",
+        default=DEFAULT_COVARIATE_COLS,
+        help="Comma-separated genotype-level covariate columns. Values are z-scored per sample group before PhWAS.",
+    )
+    parser.add_argument("--no-covariates", action="store_true", help="Disable covariate adjustment (PCs only).")
     parser.add_argument("--min-samples", type=int, default=30)
     parser.add_argument("--min-homozygote-count", type=int, default=3)
     parser.add_argument("--n-pcs", type=int, default=5)
@@ -277,6 +317,16 @@ def main() -> None:
     marker_values = geno_marker.to_numpy()[:, 0].astype(float)
     nonmissing_marker = np.isfinite(marker_values)
 
+    covariate_cols = [c.strip() for c in args.covariate_cols.split(",") if c.strip()] if not args.no_covariates else []
+    if covariate_cols:
+        log(f"Loading covariates {covariate_cols} from {args.covariate_file}")
+        covariates_all = load_covariates(args.covariate_file, genome_ids, covariate_cols)
+        covariates_complete = ~covariates_all.isna().any(axis=1).to_numpy()
+        log(f"Covariates present for {int(covariates_complete.sum())}/{len(genome_ids)} genotyped samples")
+    else:
+        covariates_all = None
+        covariates_complete = np.ones(len(genome_ids), dtype=bool)
+
     log(f"Reading phenotypes from {args.trait_zip}")
     obs = read_trait_observations(args.trait_zip)
     if args.trait:
@@ -297,7 +347,7 @@ def main() -> None:
     runnable: dict[tuple[int, ...], list[str]] = {}
     for combo in combo_names:
         y = pheno[combo].to_numpy(float)
-        observed = np.isfinite(y) & nonmissing_marker
+        observed = np.isfinite(y) & nonmissing_marker & covariates_complete
         counts = marker_counts(marker_values, observed)
         meta = combo_meta.loc[combo]
         row = {
@@ -358,6 +408,8 @@ def main() -> None:
                 geno_map,
                 genome_ids,
                 sample_indices,
+                covariates_all,
+                covariate_cols,
                 args,
             )
         except Exception as exc:
@@ -403,7 +455,14 @@ def main() -> None:
         "n_trait_environment_combos": len(combo_names),
         "n_tested": int((out["status"] == "tested").sum()),
         "n_pcs": args.n_pcs,
-        "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs as covariates, forced LRT refinement",
+        "covariate_file": str(args.covariate_file) if covariate_cols else None,
+        "covariate_cols": covariate_cols or None,
+        "cv_model": (
+            f"{args.n_pcs} PCs + {len(covariate_cols)} genotype-level covariates"
+            if covariate_cols
+            else f"{args.n_pcs} PCs"
+        ),
+        "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs (+ covariates if enabled) as CV, forced LRT refinement",
         "lrt_refinement": True,
         "lrt_screen_threshold": 1.1,
         "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",

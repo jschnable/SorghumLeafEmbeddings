@@ -1,16 +1,20 @@
 # Supplemental figure: two GDSL-esterase/lipase leaf-embedding hotspots.
 # Left  = chr2:52.3-52.7 Mb, cuticle-wax candidate GDSL/WDL1 Sobic.002G164900. Panel 4 here
-# is a boxplot of leaf glossiness (specular fraction) by lead-marker allele, in place of
-# candidate expression.
+# is a boxplot of leaf glossiness (specular fraction) by lead-marker allele, plus a human
+# disease score column chart by lead-marker allele, Nebraska2025 (NE) only.
 # Right = chr4:65.4-65.5 Mb, cell-wall candidate acetyl-xylan esterase GDSL/CE16
-# Sobic.004G286700. Panel 4 here is a leaf-yellowness (b*) by-bin line plot by lead-marker
-# allele, in place of the human-disease-score column chart.
+# Sobic.004G286700. Panel 4 here is candidate leaf expression (TPM) by lead-marker allele,
+# plus a human disease score column chart by lead-marker allele across all four sampled
+# environments (NE, NE-C, AL, GA) -- the same across-environment format panel A's disease
+# chart used before this update. The leaf-yellowness (b*) by-bin line plot that used to sit
+# here now lives in its own script/figure: figures/supplemental/chr4_yellowness/chr4_yellowness_bins.R.
 # All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
 library(ggrastr)
 library(jsonlite)
+library(ggtext)
 
 theme_use <- theme_minimal() +
   theme(axis.text.x = element_text(size = 9, color = 'black', margin = margin(0, 0, 0, 0),
@@ -27,6 +31,8 @@ theme_use <- theme_minimal() +
         axis.line.y.left = element_line(color = 'black', linewidth = 0.5),
         panel.grid = element_blank(),
         panel.background = element_blank())
+
+fmt_p <- function(p) if (p < 1e-3) sprintf('p = %.0e', p) else sprintf('p = %.3f', p)
 
 # from figures/main/figure3/figure3.R, with one bugfix: the original pvals-auto-compute
 # loop built `list(c(pvals, e = wilcox.test(...)))`, where `e` names the new element
@@ -174,13 +180,13 @@ plot_gene_track <- function(genes, exons, meta, candidate_id, candidate_label, h
               fill = 'white', linewidth = 0, label.padding = unit(0.1, 'lines')) +
     scale_color_manual(values = c(`TRUE` = highlight_color, `FALSE` = 'grey65')) +
     scale_fill_manual(values = c(`TRUE` = highlight_color, `FALSE` = 'grey65')) +
-    scale_x_continuous(name = str_c('Chr', chrom_label, ' Position (Mb)'), limits = c(meta$region_lo, meta$region_hi)/1e6, expand = expansion(mult = 0.015)) +
+    scale_x_continuous(name = str_c('Chromosome', chrom_label, ' Position (Mb)'), limits = c(meta$region_lo, meta$region_hi)/1e6, expand = expansion(mult = 0.015)) +
     scale_y_continuous(name = NULL, limits = c(-2.0, 2.0), breaks = NULL) +
     theme_use +
     theme(axis.line.y.left = element_blank())
 }
 
-plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_label, colors, candidate_id)
+plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_label, colors, candidate_id, pval = NULL)
 {
   labs <- str_split(geno_col, ':')[[1]][3:4]
   if(!file.exists(expr_path))
@@ -201,16 +207,31 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
     left_join(marker_tbl, by = 'genotype') %>%
     filter(!is.na(.data[[geno_col]]))
 
-  ggplot(expr, aes(.data[[geno_col]], tpm, fill = .data[[geno_col]])) +
+  p <- ggplot(expr, aes(.data[[geno_col]], tpm, fill = .data[[geno_col]])) +
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
-    scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)')) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
     labs(title = short_label) +
     theme_use
+
+  r <- range(expr$tpm, na.rm = TRUE); pad <- diff(r) * 0.20
+  if (is.null(pval))
+  {
+    p + scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)'), expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad))
+  }
+  else
+  {
+    y_bracket <- r[2] + pad * 0.45; tick <- pad * 0.15
+    p +
+      annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
+              y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
+              linewidth = 0.4) +
+      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+      scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)'), limits = c(max(c(0, r[1] - pad)), r[2] + pad))
+  }
 }
 
-plot_gloss_boxplot <- function(gloss_path, geno_col, marker_tbl, short_label, colors, allele_labels = NULL)
+plot_gloss_boxplot <- function(gloss_path, geno_col, marker_tbl, short_label, colors, allele_labels = NULL, pval = NULL)
 {
   # allele_labels overrides the default REF/ALT-from-marker-name labels, which are
   # illegible for indel markers (e.g. this locus's REF = 'GGAGT') -- see
@@ -221,34 +242,28 @@ plot_gloss_boxplot <- function(gloss_path, geno_col, marker_tbl, short_label, co
     left_join(marker_tbl, by = 'genotype') %>%
     filter(!is.na(.data[[geno_col]]) & !is.na(gloss))
 
-  ggplot(df, aes(.data[[geno_col]], gloss, fill = .data[[geno_col]])) +
+  p <- ggplot(df, aes(.data[[geno_col]], gloss, fill = .data[[geno_col]])) +
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
-    scale_y_continuous(name = 'Leaf Gloss\n(Specular Fraction)') +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
     labs(title = short_label) +
     theme_use
-}
 
-plot_yellowness_bins <- function(bin_path, geno_col, marker_tbl, colors, marker_name = NULL)
-{
-  labs <- str_split(geno_col, ':')[[1]][3:4]
-  if(is.null(marker_name)) {marker_name <- geno_col}
-  yellowness <- read_csv(bin_path, show_col_types = FALSE) %>%
-    pivot_longer(starts_with('b'), names_to = 'bin', names_prefix = 'b', values_to = 'yellowness') %>%
-    mutate(bin = as.numeric(bin) + 1) %>%
-    left_join(marker_tbl, by = 'genotype') %>%
-    filter(!is.na(.data[[geno_col]])) %>%
-    group_by(.data[[geno_col]], bin) %>%
-    summarise(yellowness = mean(yellowness, na.rm = TRUE), .groups = 'drop')
-
-  ggplot(yellowness, aes(bin, yellowness, color = .data[[geno_col]], group = .data[[geno_col]])) +
-    annotate('rect', xmin = 43, xmax = 57, ymin = 10, ymax = 17, fill = 'lightyellow', alpha = 0.5) +
-    geom_line() +
-    scale_x_continuous(name = 'Position across Leaf Width', expand = c(0, 0)) +
-    scale_y_continuous(name = 'Yellowness (b*)', expand = c(0, 0)) +
-    scale_color_manual(name = marker_name, values = colors, labels = labs) +
-    theme_use
+  r <- range(df$gloss, na.rm = TRUE); pad <- diff(r) * 0.20
+  if (is.null(pval))
+  {
+    p + scale_y_continuous(name = 'Leaf Gloss\n(Specular Fraction)', expand = expansion(mult = c(0.05, 0.10)), limits = c(r[1] - pad, r[2] + pad))
+  }
+  else
+  {
+    y_bracket <- r[2] + pad * 0.45; tick <- pad * 0.15
+    p +
+      annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
+              y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
+              linewidth = 0.4) +
+      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+      scale_y_continuous(name = 'Leaf Gloss\n(Specular Fraction)', limits = c(r[1] - pad, r[2] + pad))
+  }
 }
 
 load_marker_pvals <- function(path)
@@ -288,13 +303,14 @@ lead_marker_cols <- list(chr2 = names(lead_marker_genotypes)[2], chr4 = names(le
 chr2_colors <- paletteer_d('tvthemes::Diamonds')[c(5, 6)]
 chr4_colors <- paletteer_d('MetBrewer::Archambault')[c(7, 6)]
 
-top2 <- build_top_panels('chr2', '02', 'Sobic.002G164900', 'WDL1/GDSL (Sobic.002G164900)', '#FF1493FF')
-top4 <- build_top_panels('chr4', '04', 'Sobic.004G286700', 'GDSL/CE16 (Sobic.004G286700)', '#E78429FF')
+top2 <- build_top_panels('chr2', ' 2', 'Sobic.002G164900', 'Sobic.002G164900', '#FF1493FF')
+top4 <- build_top_panels('chr4', ' 4', 'Sobic.004G286700', 'Sobic.004G286700', '#E78429FF')
 
 ## ---- chr2 column: Manhattan/LD/gene track + glossiness box + disease chart -
 
-p_gloss <- plot_gloss_boxplot('chr2_gloss.csv', lead_marker_cols$chr2, lead_marker_genotypes, 'GDSL', chr2_colors,
-                              allele_labels = c('ref', 'alt'))
+gloss_pval <- if (file.exists('chr2_gloss_significance.csv')) read_csv('chr2_gloss_significance.csv', show_col_types = FALSE)$p_value[1] else NULL
+p_gloss <- plot_gloss_boxplot('chr2_gloss.csv', lead_marker_cols$chr2, lead_marker_genotypes, '', chr2_colors,
+                              allele_labels = c('GGAGT', 'G'), pval = gloss_pval)
 
 genotypes_common <- read_csv('genotypes_common.csv', show_col_types = FALSE)
 human_scores_raw <- read_csv('human_disease_scores.csv', show_col_types = FALSE)
@@ -306,7 +322,11 @@ human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
                               labels = c('NE', 'NE-C', 'AL', 'GA'))) %>%
   left_join(lead_marker_genotypes, join_by(genotype), relationship = 'many-to-one')
 
-human_scores_marker <- human_scores %>% filter(!is.na(.data[[lead_marker_cols$chr2]]))
+# NE only (Nebraska2025), per the bottom-row disease panel now being scoped to a single
+# environment -- drops the NE-C common-genotype subset and the AL/GA sites that the
+# multi-environment version of this panel (still used for the chr4 column below) shows.
+human_scores_marker <- human_scores %>%
+  filter(!is.na(.data[[lead_marker_cols$chr2]]) & environment == 'NE')
 chr2_marker_pvals <- load_marker_pvals('chr2_gloss_score_significance.csv')
 # plotAssociationStability() captures `marker` via base substitute()/{{ }}, which only works
 # for a bare/backtick symbol known at write time; rlang::inject() + sym() lets us pass in the
@@ -315,9 +335,9 @@ p_disease <- rlang::inject(
   plotAssociationStability(human_scores_marker, human_score, !!rlang::sym(lead_marker_cols$chr2),
                            colors = chr2_colors,
                            trait_name = 'Human Disease\nSeverity Score',
-                           marker_name = as.character(top2$meta$peak_marker),
+                           marker_name = '2:52490664',
                            pvals = chr2_marker_pvals,
-                           allele_labels = c('ref', 'alt'))
+                           allele_labels = c('GGAGT', 'G'))
 )
 p_disease <- p_disease +
   theme(legend.key.size = unit(0.3, 'cm'),
@@ -326,21 +346,50 @@ p_disease <- p_disease +
        legend.margin = margin(0, 0, 0, 0),
        legend.box.margin = margin(0, 0, -4, 0))
 
-row4_chr2 <- plot_grid(p_gloss, p_disease, nrow = 1)
-left_col <- plot_grid(top2$p_man, top2$p_ld, top2$p_gene, row4_chr2, ncol = 1, align = 'v', axis = 'lr',
-                      rel_heights = c(2.5, 1.0, 1.3, 2.3))
+row4_chr2 <- plot_grid(p_gloss, p_disease, nrow = 1, rel_widths = c(1, 0.65),
+                       labels = c('b', 'c'), label_size = 11)
 
-## ---- chr4 column: Manhattan/LD/gene track + candidate expr + yellowness ----
+## ---- chr4 column: Manhattan/LD/gene track + candidate expr + disease chart -
 
-p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, lead_marker_genotypes, 'GDSL', chr4_colors, 'Sobic.004G286700')
-p_yellow <- plot_yellowness_bins('bin_pergeno.csv', lead_marker_cols$chr4, lead_marker_genotypes, chr4_colors,
-                                 marker_name = as.character(top4$meta$peak_marker))
+tpm_pval <- if (file.exists('chr4_candidate_tpm_significance.csv')) read_csv('chr4_candidate_tpm_significance.csv', show_col_types = FALSE)$p_value[1] else NULL
+p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, lead_marker_genotypes, '', chr4_colors, 'Sobic.004G286700', tpm_pval)
 
-row4_chr4 <- plot_grid(p_expr, p_yellow, nrow = 1)
-right_col <- plot_grid(top4$p_man, top4$p_ld, top4$p_gene, row4_chr4, ncol = 1, align = 'v', axis = 'lr',
-                       rel_heights = c(2.5, 1.0, 1.3, 2.3))
+# across all four sampled environments (NE, NE-C, AL, GA) -- the same format panel A's
+# disease chart used before this update, just kept here for the chr4 lead marker instead of
+# being narrowed to NE only.
+human_scores_marker_chr4 <- human_scores %>% filter(!is.na(.data[[lead_marker_cols$chr4]]) & environment=='NE') 
+chr4_marker_pvals <- load_marker_pvals('chr4_gdsl_score_significance.csv')
+p_disease_chr4 <- rlang::inject(
+  plotAssociationStability(human_scores_marker_chr4, human_score, !!rlang::sym(lead_marker_cols$chr4),
+                           colors = chr4_colors,
+                           trait_name = 'Human Disease\nSeverity Score',
+                           marker_name = '4:65447981', pvals = chr4_marker_pvals)
+)
+p_disease_chr4 <- p_disease_chr4 +
+  theme(legend.key.size = unit(0.3, 'cm'),
+       legend.text = element_text(size = 9, color = 'black'),
+       legend.title = element_text(size = 9, color = 'black'),
+       legend.margin = margin(0, 0, 0, 0),
+       legend.box.margin = margin(0, 0, -4, 0))
+
+row4_chr4 <- plot_grid(p_expr, p_disease_chr4, nrow = 1, labels = c('e', 'f'), label_size = 11, rel_widths = c(1, 0.65))
 
 ## ---- assemble ---------------------------------------------------------------
 
-gdsl_hotspots <- plot_grid(left_col, right_col, ncol = 2, labels = c('A', 'B'))
+# each column gets its own lowercase, bold letter run: the Manhattan/LD/gene track stack is
+# one labeled panel (top_label), and the two bottom panels carry their own labels already
+# baked into row4 above -- same nesting cowplot uses in lysm_hotspot.R for its single-locus
+# 'A' (top) / 'B','C' (bottom) scheme, just extended to two side-by-side loci (a-c, d-f).
+assemble_locus_column <- function(top, row4, top_label)
+{
+  top_stack <- plot_grid(top$p_man, top$p_ld, top$p_gene, ncol = 1, align = 'v', axis = 'lr',
+                         rel_heights = c(2.5, 1.0, 1.3))
+  plot_grid(top_stack, row4, ncol = 1, align = 'v', axis = 'lr', rel_heights = c(4.8, 2.3),
+           labels = c(top_label, ''), label_size = 11)
+}
+
+left_col <- assemble_locus_column(top2, row4_chr2, 'a')
+right_col <- assemble_locus_column(top4, row4_chr4, 'd')
+
+gdsl_hotspots <- plot_grid(left_col, right_col, ncol = 2)
 ggsave('gdsl_hotspots.svg', plot = gdsl_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)

@@ -126,7 +126,7 @@ human_scores <- bind_rows(human_scores, nec_scores) %>%
                               labels = c('NE', 'NE-C', 'AL', 'GA'))) %>% 
   left_join(vcf, join_by(genotype), relationship = 'many-to-one')
 
-p_locus_scores_panicle <- read_csv('plocus_score_significance.csv') %>% 
+p_locus_scores_panicle <- read_csv('6:58476610:G:A_score_significance.csv') %>% 
   mutate(environment = c('AL', 'GA', 'NE', 'NE-C')) %>% 
   select(environment, p_value) %>% 
   deframe()

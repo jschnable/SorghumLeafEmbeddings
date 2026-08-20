@@ -1,0 +1,13 @@
+peak_marker,chrom,peak_marker_pos_bp,peak_start_bp,peak_start_Mbp,peak_end_bp,peak_end_Mbp,sam3_hits,dino2_hits,max_sam3_hit_density,max_dino2_hit_density,human_score_pvalue_Nebraska2025,exg_pvalue_Nebraska2025,disease_associated,candidate_gene_model,candidate_gene_short_name,function_phrase
+2:52490664:GGAGT:G,2,52490664,52300000,52.3,52699999,52.7,40,7,26,4,1.3222900464357983e-05,0.001457712,Y,Sobic.002G164900,,GDSL esterase/lipase for cuticle formation
+4:4724594:G:C,4,4724594,4700000,4.7,4799999,4.8,14,3,14,3,1.2817993466386645e-05,0.000656471,Y,Sobic.004G058000,,Regulator of jasmonate-dependent defense signaling
+4:60556616:TC:T,4,60556616,60500000,60.5,60599999,60.6,10,1,10,1,0.001061658,0.012215628754169486,Y,Sobic.004G230800,,UDP-glycosyltransferase contributing to drought tolerance
+4:64959396:G:A,4,64959396,64900000,64.9,64999999,65,24,5,24,5,0.000181757,0.000101311,Y,Sobic.004G280800,Tan1,WD40 regulator of grain tannin and anthocyanin biosynthesis
+4:65447981:G:A,4,65447981,65400000,65.4,65499999,65.5,22,5,22,5,0.000218855,0.021657949902797163,Y,Sobic.004G286700,,GDSL-type esterase/lipase for xylan deacetylation
+4:69421678:C:A,4,69421678,69400000,69.4,69499999,69.5,19,4,19,4,3.6190192337229564e-06,2.2452026055763643e-07,Y,unresolved,,(no canonical defense gene in window)
+6:43748037:C:T,6,43748037,43500000,43.5,44599999,44.6,75,10,50,7,0.6743000651545205,0.30409358110631884,N,Sobic.006G067700,Dw2,AGC kinase regulating stem internode elongation
+6:52281164:T:C,6,52281164,52100000,52.1,52399999,52.4,20,53,13,32,0.12470175967340763,0.18450770599723523,N,Sobic.006G147400,Dry,NAC transcription factor regulating stem PCD and juiciness
+6:58476610:G:A,6,58476610,58200000,58.2,58699999,58.7,30,19,25,12,0.001782601,0.031121121,Y,Sobic.006G226800,P,flavanone 4-reductase for phytoalexin synthesis; anthocyanidin reductase for proanthocyanidin biosynthesis
+9:1768703:G:T,9,1768703,1700000,1.7,1799999,1.8,12,6,12,6,0.035132129,0.003381312,Y,Sobic.009G019100,,Leaf-biased LysM receptor-like kinase
+9:60857595:C:T,9,60857595,59900000,59.9,61499999,61.5,140,168,81,116,0.19518808345523359,0.03527113,N,Sobic.009G229801,Dw1,Positive regulator of brassinosteroid signaling promoting internode growth
+9:62301540:T:A,9,62301540,61900000,61.9,62399999,62.4,54,41,24,27,2.340442440438784e-05,0.000330051,Y,Sobic.009G249900,,jasmonate-amino-acid ligase in defense and reproduction

@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+all,4:60556616:TC:T,4,60556616,TC,T,Sobic.004G230800,423,423,381,2,40,-1.5588435060668298,2.4293224904918134,-1.1859222922951789,0.20108481145553328,5.607615788692494e-09,-0.4881699720546737,-0.9763399441093474,decreases,tested,

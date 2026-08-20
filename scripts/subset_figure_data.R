@@ -2,7 +2,7 @@ library(tidyverse)
 library(reticulate)
 library(jsonlite)
 library(VariantAnnotation)
-use_condaenv("jupyterlab-debugger", required = TRUE)
+use_condaenv("jupyterlab-debugger-arm", required = TRUE)
 np <- reticulate::import("numpy")
 
 images_exclude <- read_csv('data/provided/image_ids_exclude.csv')
@@ -410,6 +410,9 @@ for(nm in names(candidate_genes))
 # reassignment, but its region data is for the correct 65.4 Mb locus); this block only
 # converts/copies what's needed for a ggplot figure into the figure directory.
 gdsl_dir <- 'figures/supplemental/gdsl_hotspots'
+# chr4:65.4 lead-marker effect on leaf yellowness by bin, split out into its own figure/
+# directory (see figures/supplemental/chr4_yellowness/chr4_yellowness_bins.R for why).
+chr4_yellowness_dir <- 'figures/supplemental/chr4_yellowness'
 
 convert_region_gwas('figures/chr2_gloss_peak/region_gwas.npz', file.path(gdsl_dir, 'chr2_region_gwas.csv'))
 convert_region_gwas('figures/chr4_ggpps_peak/region_gwas.npz', file.path(gdsl_dir, 'chr4_region_gwas.csv'))
@@ -434,6 +437,38 @@ gdsl_marker_names <- str_c(as.character(seqnames(gdsl_fx)), start(gdsl_fx), as.c
 gdsl_lead_geno <- as_tibble(t(gdsl_lead_gt), rownames = 'genotype')
 colnames(gdsl_lead_geno) <- c('genotype', gdsl_marker_names)
 write_csv(gdsl_lead_geno, file.path(gdsl_dir, 'lead_marker_genotypes.csv'))
+# same lead-marker genotypes needed by chr4_yellowness_bins.R (it indexes column 3, the
+# chr4 marker, out of this same table)
+write_csv(gdsl_lead_geno, file.path(chr4_yellowness_dir, 'lead_marker_genotypes.csv'))
+
+# lead-marker genotype calls (chr2:52,490,664 GGAGT>G; chr4:65,447,981 G>A), read directly
+# from the tabix-indexed VCF via VariantAnnotation (no bcftools/vcftools dependency)
+tan1_lead_markers <- GRanges(seqnames = c('4'), ranges = IRanges(start = c(64959396), width = 1))
+tan1_lead_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = tan1_lead_markers, geno = 'GT'))
+tan1_lead_gt <- geno(tan1_lead_vcf)$GT
+tan1_lead_gt[tan1_lead_gt %in% c('0|0')] <- '0/0'
+tan1_lead_gt[tan1_lead_gt %in% c('1|1')] <- '1/1'
+tan1_lead_gt[!(tan1_lead_gt %in% c('0/0', '1/1'))] <- NA  # drop hets + missing, as done elsewhere in this repo
+tan1_fx <- rowRanges(tan1_lead_vcf)
+tan1_marker_names <- str_c(as.character(seqnames(tan1_fx)), start(tan1_fx), as.character(tan1_fx$REF),
+                           sapply(tan1_fx$ALT, function(a) as.character(a)[1]), sep = ':')
+tan1_lead_geno <- as_tibble(t(tan1_lead_gt), rownames = 'genotype')
+colnames(tan1_lead_geno) <- c('genotype', tan1_marker_names)
+write_csv(tan1_lead_geno, file.path('figures/supplemental/tan1_gloss_test/lead_marker_genotypes.csv'))
+
+tan1_f3h_expr <- tpm %>% 
+  dplyr::select(c(gene_id, starts_with('SG2021'))) %>% 
+  filter(gene_id %in% c('Sobic.004G280800', 'Sobic.004G200744')) %>% 
+  pivot_longer(!gene_id, values_to = 'tpm', 
+               names_to = 'sample_id') %>% 
+  right_join(meta_expr) %>%
+  drop_na(tpm) %>%
+  group_by(genotype, gene_id) %>%
+  summarise(tpm = mean(tpm)) %>% 
+  pivot_wider(id_cols = genotype, 
+              values_from = tpm, 
+              names_from = gene_id)
+write_csv(tan1_f3h_expr, 'figures/supplemental/tan1_gloss_test/expression.csv')
 
 # chr2 leaf glossiness (specular-highlight fraction) per genotype, for the panel-4 boxplot
 # that replaces candidate expression on the chr2 side. Source: figures/chr2_gloss_peak/
@@ -450,15 +485,19 @@ read_csv(file.path('figures/chr2_gloss_peak', 'box_data.csv'), show_col_types = 
 file.copy('data/provided/human_disease_scores.csv', file.path(gdsl_dir, 'human_disease_scores.csv'), overwrite = TRUE)
 file.copy('figures/main/figure3/genotypes_common.csv', file.path(gdsl_dir, 'genotypes_common.csv'), overwrite = TRUE)
 
-# NOTE (flagged, not run here): the chr2 disease-score panel ideally uses a per-environment
-# marker-significance file (chr2_gloss_score_significance.csv, marker 2:52490664 vs
-# human_score) analogous to chr4_ja_score_significance.csv in ja_hotspots/, generated via:
-#   python scripts/run_single_marker_test.py data/provided/human_disease_scores.csv \
-#     human_score "2:52490664" --group-column environment \
-#     --out-file figures/supplemental/gdsl_hotspots/chr2_gloss_score_significance.csv
-# This needs the full panicle LOCO-MLM/LRT pipeline against the whole VCF and is not run by
-# this script. Until that file exists, gdsl_hotspots.R falls back to an on-the-fly per-
-# environment Wilcoxon test (the same fallback plotAssociationStability() already supports).
+# per-environment marker-significance files for the chr2/chr4 disease-score panels (panicle
+# LOCO-MLM/LRT, all 4 groups: NE/NE-C/AL/GA), analogous to chr4_ja_score_significance.csv in
+# ja_hotspots/ -- already computed by the standalone hotspot_disease_associations survey
+# (same pipeline scripts/run_single_marker_test.py wraps), so just copied in here rather than
+# re-run. gdsl_hotspots.R's load_marker_pvals() falls back to an on-the-fly per-environment
+# Wilcoxon test if either file is ever missing.
+sig_col_types <- cols(ref = col_character(), alt = col_character())
+read_csv('data/generatable/hotspot_disease_associations/human_scores/chr2:52490664:GGAGT:G_score_significance.csv',
+        col_types = sig_col_types) %>%
+  write_csv(file.path(gdsl_dir, 'chr2_gloss_score_significance.csv'))
+read_csv('data/generatable/hotspot_disease_associations/human_scores/chr4:65447981:G:A_score_significance.csv',
+        col_types = sig_col_types) %>%
+  write_csv(file.path(gdsl_dir, 'chr4_gdsl_score_significance.csv'))
 
 # chr4:65.4 candidate-gene (Sobic.004G286700, GDSL/CE16 acetyl-xylan esterase) leaf
 # expression (log2 TPM+1), for the panel-4 boxplot kept on the chr4 side (as in
@@ -472,14 +511,30 @@ gdsl_expr_geno <- meta_expr %>%
   summarise(tpm = mean(tpm))
 write_csv(gdsl_expr_geno, file.path(gdsl_dir, 'chr4_candidate_expression.csv'))
 
+# trait~lead-marker significance for the panel-b/e boxplots themselves (gloss~chr2 marker,
+# TPM~chr4 marker) -- analogous to chr4_candidate_tpm_significance.csv in ja_hotspots/, and
+# distinct from chr2_gloss_score_significance.csv/chr4_gdsl_score_significance.csv above,
+# which test the lead markers against human_score, not against gloss/TPM. Not generated here
+# (needs the panicle_dev environment); regenerate with:
+#   conda run -n panicle_dev python scripts/run_single_marker_test.py \
+#     figures/supplemental/gdsl_hotspots/chr2_gloss.csv gloss 2:52490664:GGAGT:G \
+#     --out-file figures/supplemental/gdsl_hotspots/chr2_gloss_significance.csv
+#   conda run -n panicle_dev python scripts/run_single_marker_test.py \
+#     figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv tpm 4:65447981:G:A --log2 \
+#     --out-file figures/supplemental/gdsl_hotspots/chr4_candidate_tpm_significance.csv
+# gdsl_hotspots.R's plot_gloss_boxplot()/plot_candidate_expression() fall back to no bracket
+# if either file is missing.
+
+# ---- figures/supplemental/chr4_yellowness ----
 # chr4:65.4 leaf yellowness (b*, CIELAB) profile across leaf width, per genotype x bin
-# (bin0..bin99), for the yellowness-by-bin plot that replaces the disease-score panel on the
-# chr4 side. Source: figures/chr4_tan1_peak/bin_pergeno.csv, computed by
-# figures/chr4_tan1_peak/compute_yellowness_profiles.py -- that pipeline only has segmented
-# Nebraska2025 leaves for genotypes homozygous at the nearby (~489kb away), independent Tan1
-# marker 4:64,959,396, so the sample here is that same ~500-line subset regrouped by the
-# 65.4 lead marker instead of Tan1, not the full 925-line panel.
-file.copy('figures/chr4_tan1_peak/bin_pergeno.csv', file.path(gdsl_dir, 'bin_pergeno.csv'), overwrite = TRUE)
+# (bin0..bin99), for the yellowness-by-bin plot that replaces the disease-score panel that
+# used to sit on the chr4 side of gdsl_hotspots.R. Source: figures/chr4_tan1_peak/
+# bin_pergeno.csv, computed by figures/chr4_tan1_peak/compute_yellowness_profiles.py -- that
+# pipeline only has segmented Nebraska2025 leaves for genotypes homozygous at the nearby
+# (~489kb away), independent Tan1 marker 4:64,959,396, so the sample here is that same
+# ~500-line subset regrouped by the 65.4 lead marker instead of Tan1, not the full 925-line
+# panel.
+file.copy('figures/chr4_tan1_peak/bin_pergeno.csv', file.path(chr4_yellowness_dir, 'bin_pergeno.csv'), overwrite = TRUE)
 
 
 # ---- figures/supplemental/lysm_hotspot ----
@@ -552,11 +607,6 @@ bind_rows(
   dplyr::select(phenotype, p_value, effect_alt_allele) %>%
   write_csv(file.path(lysm_dir, 'peak_marker_nebraska_significance.csv'))
 
-exg_pmap <- read_csv('data/generatable/gwas/exg/traits/ExG_P20_disease_pct_marker_pvalues.csv')
-exg_pmap <- as.matrix(exg_pmap)
-exg_pmap <- exg_pmap[, c('CHROM', 'POS', 'p_value')]
-np$savez_compressed('figures/supplemental/exg_manhattan/ExG_P20_disease_pct_marker_pvalues.npz', pmap = exg_pmap)
-
 
 # ---- figures/supplemental/p_locus_scores ----
 # p_locus_scores.R reads its own local copies of the raw disease scores + common-genotype
@@ -566,3 +616,70 @@ np$savez_compressed('figures/supplemental/exg_manhattan/ExG_P20_disease_pct_mark
 plocus_dir <- 'figures/supplemental/p_locus_scores'
 file.copy('data/provided/human_disease_scores.csv', file.path(plocus_dir, 'human_disease_scores.csv'), overwrite = TRUE)
 file.copy('figures/main/figure3/genotypes_common.csv', file.path(plocus_dir, 'genotypes_common.csv'), overwrite = TRUE)
+
+
+# ---- figures/supplemental/ugt_biomass_disease ----
+# Sobic.004G230800 (UGT, chr4:60.5 PME-peak candidate) and Sobic.004G231300 leaf expression
+# (raw TPM, per-genotype mean, NE2021 SG2021 field-trial samples -- same tpm/meta_expr
+# tables loaded above for the ja_hotspots/tan1 expression blocks), plus MI2021
+# total_plot_dry_weight_g (per-genotype mean of per-plot totals; source
+# data/externalsourcerequired/sorghum_trait_data_v2.2.zip, per_location_traits/MI2021.tsv).
+ugt_dir <- 'figures/supplemental/ugt_biomass_disease'
+
+ugt_expr <- tpm %>%
+  dplyr::select(c(gene_id, starts_with('SG2021'))) %>%
+  filter(gene_id %in% c('Sobic.004G230800', 'Sobic.004G231300')) %>%
+  pivot_longer(!gene_id, values_to = 'tpm', names_to = 'sample_id') %>%
+  right_join(meta_expr, by = 'sample_id') %>%
+  drop_na(tpm) %>%
+  group_by(genotype, gene_id) %>%
+  summarise(tpm = mean(tpm), .groups = 'drop') %>%
+  pivot_wider(id_cols = genotype, values_from = tpm, names_from = gene_id)
+write_csv(ugt_expr, file.path(ugt_dir, 'expression.csv'))
+
+mi2021_zip <- 'data/externalsourcerequired/sorghum_trait_data_v2.2.zip'
+mi2021_dry_weight <- read_tsv(
+    unz(mi2021_zip, 'sorghum_trait_data_v2.2/per_location_traits/MI2021.tsv'),
+    show_col_types = FALSE
+  ) %>%
+  dplyr::select(genotype, total_plot_dry_weight_g) %>%
+  drop_na(total_plot_dry_weight_g) %>%
+  group_by(genotype) %>%
+  summarise(total_plot_dry_weight_g = mean(total_plot_dry_weight_g), .groups = 'drop')
+write_csv(mi2021_dry_weight, file.path(ugt_dir, 'mi2021_total_plot_dry_weight.csv'))
+
+
+# ---- figures/supplemental/wdl1_leafwater ----
+# Standalone version of chr2_story.png panel D, but not genotype-PC-residualized for display:
+# dry/fresh biomass + leaf-water-fraction by 2:52490664 (GGAGT>G, WDL1/GDSL cuticle-candidate
+# lead marker) dose, shown in SD units, pooled MI2020+MI2021 by z-scoring each trait within
+# environment first and then averaging the per-environment z-scores per genotype (see
+# figures/chr2_gloss_peak/compute_story_panels.py). Source data (per-genotype
+# dry/fresh/water_frac + peak_dose on that pooled scale, and the precomputed beta*/p-values
+# from the structure-aware panicle LOCO-MLM test, computed on the same pooled scale) were
+# already produced by compute_story_panels.py; this block just copies the two inputs
+# wdl1_leafwater.R needs into the figure directory, same pattern as gdsl_hotspots above.
+wdl1_dir <- 'figures/supplemental/wdl1_leafwater'
+for(f in c('story_biomass_data.csv', 'story_pvalues.json'))
+{
+  file.copy(file.path('figures/chr2_gloss_peak', f), file.path(wdl1_dir, f), overwrite = TRUE)
+}
+
+
+# ---- figures/supplemental/chr4_69_panicle_wt ----
+# single_plant_panicle_dry_weight_g (MI2020) by allele at the chr4:69.4 Mb end-peak lead
+# marker (4:69421678, C>A; same marker as figures/chr4_end_peak, see its meta.json). Not
+# regenerated here (needs the panicle_dev environment); regenerate with:
+#   conda run -n panicle_dev python figures/supplemental/chr4_69_panicle_wt/compute_chr4_69_panicle_wt.py
+# which writes box_data.csv (genotype, peak_dose, single_plant_panicle_dry_weight_g) and
+# mlm_pvalues.json (LOCO-MLM + 5 PCs) directly into that figure directory.
+
+
+# ---- figures/supplemental/chr9_1_panicle_wt ----
+# single_plant_panicle_dry_weight_g (MI2020) by allele at the chr9:1.77 Mb LysM-RLK lead
+# marker (9:1768703, G>T; same marker as figures/lysm_rlk_story, see its meta.json;
+# candidate Sobic.009G019100). Not regenerated here (needs the panicle_dev environment);
+# regenerate with:
+#   conda run -n panicle_dev python figures/supplemental/chr9_1_panicle_wt/compute_chr9_1_panicle_wt.py
+# which writes box_data.csv (genotype, peak_dose, single_plant_panicle_dry_weight_g) and
+# mlm_pvalues.json (LOCO-MLM + 5 PCs) directly into that figure directory.
