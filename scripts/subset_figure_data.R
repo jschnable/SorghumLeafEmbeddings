@@ -683,3 +683,25 @@ for(f in c('story_biomass_data.csv', 'story_pvalues.json'))
 #   conda run -n panicle_dev python figures/supplemental/chr9_1_panicle_wt/compute_chr9_1_panicle_wt.py
 # which writes box_data.csv (genotype, peak_dose, single_plant_panicle_dry_weight_g) and
 # mlm_pvalues.json (LOCO-MLM + 5 PCs) directly into that figure directory.
+
+# ---- figures/supplemental/hotspot_score_stability ----
+# stability of alt allele effect on human disease scores across environments
+# hotspots with lead markers 4:60556616:TC:T,  4:64959396:G:A, 4:65447981:G:A, 4:69421678:C:A, 6:58476610:G:A stable in at least one env other than NE
+# p vals estimated using single marker test by env not regenerated here
+vcf_path <- 'data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz'
+lead_markers <- GRanges(seqnames = c(rep('4', 4), '6'), ranges = IRanges(start = c(60556616, 64959396, 65447981, 69421678, 58476610), width = 1))
+lead_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = lead_markers, geno = 'GT'))
+lead_gt <- geno(lead_vcf)$GT
+lead_gt[lead_gt %in% c('0|0')] <- '0/0'
+lead_gt[lead_gt %in% c('1|1')] <- '1/1'
+lead_gt[!(lead_gt %in% c('0/0', '1/1'))] <- NA  # drop hets + missing, as done elsewhere in this repo
+fx <- rowRanges(lead_vcf)
+marker_names <- str_c(as.character(seqnames(fx)), start(fx), as.character(fx$REF),
+                      sapply(fx$ALT, function(a) as.character(a)[1]), sep = ':')
+lead_geno <- as_tibble(t(lead_gt), rownames = 'genotype')
+colnames(lead_geno) <- c('genotype', marker_names)
+write_csv(lead_geno, file.path('figures/supplemental/hotspot_score_stability/lead_marker_genotypes.csv'))
+file.copy('data/generatable/blues/allsites_human_scores/blues_Nebraska2025.csv', 'figures/supplemental/hotspot_score_stability')
+file.copy('data/generatable/blues/allsites_human_scores/blues_Alabama2025.csv', 'figures/supplemental/hotspot_score_stability')
+file.copy('data/generatable/blues/allsites_human_scores/blues_Georgia2025.csv', 'figures/supplemental/hotspot_score_stability')
+file.copy('data/provided/genotypes_allsites.csv', 'figures/supplemental/hotspot_score_stability')
