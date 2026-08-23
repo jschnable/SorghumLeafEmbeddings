@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Per-leaf yellowness (b*) profile across leaf width (margin -> midrib -> margin), for
-every Nebraska2025 leaf photo not in data/provided/image_ids_exclude.csv (no genotype
-filter). Reorients each leaf horizontal (PCA of mask), takes the near-max-width region of
-the leaf (avoiding tip/base taper), converts to CIELAB, and resamples the margin-to-margin
-b* profile to NBIN=100 per leaf. Writes
-yellowness_profiles.csv (genotype, group, b0..b99), where group is the genotype's dose at
-the chr4:64,959,396 (Tan1 lead) marker -- minor/major/het/missing -- kept for
-make_yellowness_profile_figure.py's minor-vs-major comparison, which subsets to group in
-{minor, major} itself.
+"""Per-genotype yellowness (b*) profile across leaf width (margin -> midrib -> margin), for
+every Nebraska2025 leaf photo not in data/provided/image_ids_exclude.csv (no marker/genotype
+filter -- every photographed line is included). For each leaf: reorients the leaf horizontal
+(PCA of mask), takes the near-max-width region of the leaf (avoiding tip/base taper),
+converts to CIELAB, and resamples the margin-to-margin b* profile to NBIN=100 bins. Per-leaf
+profiles are then averaged within each genotype (of the up-to-925-line panel) for each bin.
+Writes genotype, b0..b99, n_leaves to the CSV path given by --out.
 
 Note: the original per-leaf profile-extraction script (used for the chr4:65,447,981 peak
 figure) was never committed to the repo and is not recoverable, so this reimplements the
@@ -17,7 +15,7 @@ not guaranteed consistent leaf-to-leaf (PCA axis sign is arbitrary), matching th
 limitation in extract_slices.py -- treat bin 0/99 as "margin", not a fixed anatomical side.
 """
 from __future__ import annotations
-import gzip, sys, time
+import argparse, sys, time
 from multiprocessing import Pool
 from pathlib import Path
 import numpy as np, pandas as pd
@@ -29,33 +27,11 @@ from segment_leaf import process_single_result
 from embedding_annotation import read_exclude_ids
 from embedding_io import image_key
 
-D = Path("figures/chr4_tan1_peak")
 META = "data/provided/field_image_metadata.csv"
 EXCLUDE_LIST = "data/provided/image_ids_exclude.csv"
-# The embedding_ne_sam3_2016crop_with_cov subset VCF is a shared scratch file other scripts
-# regenerate with whichever markers they need, so it's not a reliable place to find the Tan1
-# marker; read straight from the full genotyped VCF instead (same one compute_tan1_bin_gwas.py
-# uses for its GWAS).
-VCF = "data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz"
-CHROM, POS = "4", 64_959_396
 NBIN = 100
 MIN_AREA = 50_000
 NPROC = 20
-
-
-def load_dose(vcf_path, chrom, pos):
-    gt2dose = {"0/0": 0, "0|0": 0, "0/1": 1, "0|1": 1, "1/0": 1, "1|0": 1, "1/1": 2, "1|1": 2}
-    opener = gzip.open if str(vcf_path).endswith(".gz") else open
-    with opener(vcf_path, "rt") as f:
-        for line in f:
-            if line.startswith("#CHROM"):
-                samples = line.rstrip("\n").split("\t")[9:]
-            elif not line.startswith("#"):
-                fields = line.rstrip("\n").split("\t")
-                if fields[0] == chrom and fields[1] == str(pos):
-                    gts = fields[9:]
-                    return {s: gt2dose.get(g) for s, g in zip(samples, gts)}
-    raise ValueError(f"marker {chrom}:{pos} not found in {vcf_path}")
 
 
 def leaf_profile(image_path, nbin=NBIN, min_area=MIN_AREA):
@@ -100,14 +76,14 @@ def leaf_profile(image_path, nbin=NBIN, min_area=MIN_AREA):
 
 
 def _worker(row):
-    genotype, group, path = row
+    genotype, path = row
     try:
         prof = leaf_profile(path)
     except Exception:
         prof = None
     if prof is None:
         return None
-    return (genotype, group) + tuple(prof)
+    return (genotype,) + tuple(prof)
 
 
 def log(msg):
@@ -115,14 +91,9 @@ def log(msg):
 
 
 def main():
-    dose = load_dose(VCF, CHROM, POS)
-    n0 = sum(1 for v in dose.values() if v == 0)
-    n2 = sum(1 for v in dose.values() if v == 2)
-    minor_dose, major_dose = (2, 0) if n2 < n0 else (0, 2)
-    minor_allele = "A/A" if minor_dose == 2 else "G/G"
-    major_allele = "A/A" if major_dose == 2 else "G/G"
-    log(f"marker chr{CHROM}:{POS}  dose0(G/G) n={n0} lines  dose2(A/A) n={n2} lines  "
-        f"-> minor={minor_allele} major={major_allele}")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", required=True, help="Path to write the per-genotype bin-mean CSV to.")
+    args = ap.parse_args()
 
     meta = pd.read_csv(META)
     ne = meta[meta.environment == "Nebraska2025"].copy()
@@ -131,22 +102,9 @@ def main():
         before = len(ne)
         ne = ne[~ne.image_id.map(image_key).isin(exclude_ids)].copy()
         log(f"[exclude] skipped {before - len(ne)} of {before} Nebraska2025 leaves via {EXCLUDE_LIST}")
-    ne["dose"] = ne.genotype.map(dose)
+    log(f"candidate leaves: {len(ne)}  ({ne.genotype.nunique()} genotypes)")
 
-    def label(d):
-        if pd.isna(d):
-            return "missing"
-        if d == minor_dose:
-            return "minor"
-        if d == major_dose:
-            return "major"
-        return "het"
-
-    ne["group"] = ne.dose.map(label)
-    log(f"candidate leaves: minor={(ne.group=='minor').sum()}  major={(ne.group=='major').sum()}  "
-        f"het={(ne.group=='het').sum()}  missing={(ne.group=='missing').sum()}")
-
-    rows = list(zip(ne.genotype, ne.group, ne.image_path))
+    rows = list(zip(ne.genotype, ne.image_path))
     t0 = time.time()
     out_rows = []
     with Pool(NPROC) as pool:
@@ -157,16 +115,15 @@ def main():
                 log(f"{i + 1}/{len(rows)} processed, {len(out_rows)} ok, {time.time() - t0:.0f}s elapsed")
     log(f"done: {len(out_rows)}/{len(rows)} leaves segmented ok, {time.time() - t0:.0f}s")
 
-    cols = ["genotype", "group"] + [f"b{i}" for i in range(NBIN)]
-    df = pd.DataFrame(out_rows, columns=cols)
-    df.to_csv(D / "yellowness_profiles.csv", index=False)
-    log(f"wrote {D / 'yellowness_profiles.csv'}  "
-        f"(minor n={ (df.group=='minor').sum()}  major n={(df.group=='major').sum()})")
+    bcols = [f"b{i}" for i in range(NBIN)]
+    prof = pd.DataFrame(out_rows, columns=["genotype"] + bcols)
+    pergeno = prof.groupby("genotype")[bcols].mean()
+    pergeno["n_leaves"] = prof.groupby("genotype").size()
 
-    import json
-    json.dump({"chrom": CHROM, "pos": POS, "minor_allele": minor_allele, "major_allele": major_allele,
-               "minor_lines": n2 if minor_dose == 2 else n0, "major_lines": n0 if minor_dose == 2 else n2},
-              open(D / "marker_meta.json", "w"), indent=2)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    pergeno.to_csv(out_path)
+    log(f"wrote {out_path}  ({len(pergeno)} genotypes, median {pergeno.n_leaves.median():.0f} leaves/genotype)")
 
 
 if __name__ == "__main__":
