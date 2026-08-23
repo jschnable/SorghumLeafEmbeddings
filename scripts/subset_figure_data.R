@@ -529,11 +529,11 @@ write_csv(gdsl_expr_geno, file.path(gdsl_dir, 'chr4_candidate_expression.csv'))
 # chr4:65.4 leaf yellowness (b*, CIELAB) profile across leaf width, per genotype x bin
 # (bin0..bin99), for the yellowness-by-bin plot that replaces the disease-score panel that
 # used to sit on the chr4 side of gdsl_hotspots.R. Source: figures/chr4_tan1_peak/
-# bin_pergeno.csv, computed by figures/chr4_tan1_peak/compute_yellowness_profiles.py -- that
-# pipeline only has segmented Nebraska2025 leaves for genotypes homozygous at the nearby
-# (~489kb away), independent Tan1 marker 4:64,959,396, so the sample here is that same
-# ~500-line subset regrouped by the 65.4 lead marker instead of Tan1, not the full 925-line
-# panel.
+# bin_pergeno.csv, computed by figures/chr4_tan1_peak/compute_yellowness_profiles.py from
+# every segmented Nebraska2025 leaf (no genotype filter), then grouped by the 65.4 lead
+# marker via lead_marker_genotypes.csv -- so the sample here is however many of those
+# genotypes have a segmented Nebraska2025 leaf, not restricted to the nearby (~489kb away),
+# independent Tan1 marker 4:64,959,396 the way it used to be.
 file.copy('figures/chr4_tan1_peak/bin_pergeno.csv', file.path(chr4_yellowness_dir, 'bin_pergeno.csv'), overwrite = TRUE)
 
 
@@ -689,7 +689,7 @@ for(f in c('story_biomass_data.csv', 'story_pvalues.json'))
 # hotspots with lead markers 4:60556616:TC:T,  4:64959396:G:A, 4:65447981:G:A, 4:69421678:C:A, 6:58476610:G:A stable in at least one env other than NE
 # p vals estimated using single marker test by env not regenerated here
 vcf_path <- 'data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz'
-lead_markers <- GRanges(seqnames = c(rep('4', 4), '6'), ranges = IRanges(start = c(60556616, 64959396, 65447981, 69421678, 58476610), width = 1))
+lead_markers <- GRanges(seqnames = c(rep('4', 3), '6'), ranges = IRanges(start = c(60556616, 64959396, 65447981, 58476610), width = 1))
 lead_vcf <- readVcf(vcf_path, param = ScanVcfParam(which = lead_markers, geno = 'GT'))
 lead_gt <- geno(lead_vcf)$GT
 lead_gt[lead_gt %in% c('0|0')] <- '0/0'

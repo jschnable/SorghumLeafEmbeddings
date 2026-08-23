@@ -36,8 +36,7 @@ score_blues <- bind_rows(ne, nec, al, ga) %>%
   summarise(mean = mean(human_score, na.rm = TRUE), 
             se = sd(human_score, na.rm = TRUE)/sqrt(n()), 
             n = n()) %>% 
-  filter(!(environment=='AL' & marker=='4:69421678:C:A')) %>% 
-  mutate(asterisks = case_when(environment=='NE' & marker %in% c('4:60556616:TC:T', '4:65447981:G:A', '4:69421678:C:A') ~ '****', 
+  mutate(asterisks = case_when(environment=='NE' & marker %in% c('4:60556616:TC:T', '4:65447981:G:A') ~ '****', 
                                marker=='4:64959396:G:A' & environment %in% c('NE', 'NE-C') ~ '*', 
                                marker=='6:58476610:G:A' & environment=='NE' ~ '***', 
                                marker=='6:58476610:G:A' & environment %in% c('AL', 'NE-C') ~ '**', 
@@ -45,13 +44,13 @@ score_blues <- bind_rows(ne, nec, al, ga) %>%
                                marker=='4:60556616:TC:T' & environment=='NE-C' ~ '****', 
                                marker=='4:60556616:TC:T' & environment=='AL' ~ '*', 
                                marker=='4:65447981:G:A' & environment=='NE-C' ~ '**', 
-                               marker=='4:65447981:G:A' & environment=='AL' ~ '*', 
-                               marker=='4:69421678:C:A' & environment=='GA' ~ '*', .default = NULL))
+                               marker=='4:65447981:G:A' & environment=='AL' ~ '*', .default = NULL)) %>% 
+  mutate(asterisks = case_when(allele=='0/0' ~ NA, .default = asterisks))
 
 plot <- ggplot(score_blues, aes(environment, mean, fill = allele)) + 
   geom_col(position = position_dodge(width = 0.9)) + 
   geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.25, position = position_dodge(width = 0.9)) + 
-  geom_text(aes(label = asterisks), size = 9, size.unit = 'pt') +
+  geom_text(aes(label = asterisks, y = 3), size = 9, size.unit = 'pt') +
   facet_wrap(vars(marker), scales = 'free_x', nrow = 2) + 
   scale_x_discrete(name = NULL, expand = c(0, 0)) +
   scale_y_continuous(name = 'Human Disease Severity Score', expand = c(0, 0)) + 
@@ -60,4 +59,4 @@ plot <- ggplot(score_blues, aes(environment, mean, fill = allele)) +
   theme(strip.text = element_text(size = 9, color = 'black'))
 plot
 
-ggsave('hotspot_score_stability.svg', plot = plot, width = 6.5, height = 4)
+ggsave('hotspot_score_stability.svg', plot = plot, width = 6.5, height = 3.25)

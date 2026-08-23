@@ -85,29 +85,6 @@ partial_cor <- partial_cor %>%
   left_join(dplyr::select(hotspot_master, peak_marker, disease_associated), by = c('hotspot' = 'peak_marker')) %>%
   mutate(disease_linked = disease_associated == 'Y')
 
-wilcox_p <- wilcox.test(partial_r^2 ~ disease_linked, data = partial_cor)$p.value
-
-r <- range(partial_cor$partial_r^2, na.rm = TRUE)
-pad <- diff(r) * 0.2
-y_bracket <- r[2] + pad * 0.45
-tick <- pad * 0.15
-
-boxplot <- ggplot(partial_cor, aes(disease_linked, raw_spearman_r^2 - partial_r^2, fill = disease_linked)) +
-  geom_boxplot() +
-  annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
-          y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
-          linewidth = 0.4) +
-  annotate('text', x = 1.5, y = y_bracket, label = fmt_p(wilcox_p), vjust = -0.3, size = 7, size.unit = 'pt') +
-  scale_x_discrete(name = 'Disease-Linked',
-                   labels = c('No', 'Yes')) +
-  scale_y_continuous(name = expression('Partial Spearman'~rho^2),
-                     limits = c(0, r[2] + pad)) +
-  scale_fill_manual(name = 'Disease-Linked',
-                    values = c(`FALSE` = disease_colors[['No']], `TRUE` = disease_colors[['Yes']])) +
-  theme_use +
-  theme(legend.position = 'none')
-ggsave('partial_correlation_by_disease_linkage.png', plot = boxplot, dpi = 300, width = 4.5, height = 3.75, bg = 'white')
-
 cross_partial_cor <- read_csv('../../../data/generatable/cross_hotspot_embedding_pair_partial_correlations.csv') %>% 
   mutate(pair = str_c(response_embedding, predictor_embedding, sep = '_'), 
          comp_type = 'cross_hotspot')
@@ -119,24 +96,19 @@ partial_all <- bind_rows(cross_partial_cor, partial_cor)
 
 disease_linked_embeddings <- union(partial_cor$response_embedding[partial_cor$disease_linked], partial_cor$predictor_embedding[partial_cor$disease_linked])
 
-partial_disease_linked <- filter(partial_all, response_embedding %in% disease_linked_embeddings & predictor_embedding %in% disease_linked_embeddings)
+partial_all <- partial_all %>% 
+  mutate(disease_linked = predictor_embedding %in% disease_linked_embeddings & 
+           response_embedding %in% disease_linked_embeddings)
 
-comp_type_p <- wilcox.test(partial_r^2 ~ comp_type, data = partial_disease_linked)$p.value
-
-comp_type_boxplot <- ggplot(partial_disease_linked, aes(comp_type, partial_r^2, fill = comp_type)) + 
+plot <- ggplot(partial_all, aes(disease_linked, partial_r^2, fill = comp_type)) + 
   geom_boxplot() + 
-  annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
-           y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
-           linewidth = 0.4) +
-  annotate('text', x = 1.5, y = y_bracket, label = fmt_p(comp_type_p), vjust = -0.3, size = 7, size.unit = 'pt') +
-  scale_x_discrete(name = 'Embedding Pair Type',
-                   labels = c('Across\nHotspots', 'Within\nHotspot')) +
-  scale_y_continuous(name = expression('Partial Spearman'~rho^2),
-                     limits = c(0, r[2] + pad)) +
-  scale_fill_manual(values = paletteer_d('nationalparkcolors::Acadia')[3:4]) +
-  theme_use + 
-  theme(legend.position = 'none')
-comp_type_boxplot
+  scale_x_discrete(name = 'Disease-Linked',
+                   labels = c('No', 'Yes')) +
+  scale_y_continuous(name = expression('Partial Spearman'~rho^2)) +
+  scale_fill_manual(name = 'Hotspot Association', 
+                    labels = c('Different Hotspots', 'Same Hotspot'), 
+                    values = paletteer_d('nationalparkcolors::Acadia')[3:4]) +
+  theme_use
+plot
 
-boxplots <- plot_grid(comp_type_boxplot, boxplot, nrow = 1, labels = 'auto')
-ggsave('partial_correlation_by_disease_linkage.png', plot = boxplots, width = 6.5, height = 3.25)
+ggsave('partial_correlation_by_disease_linkage.svg', plot = plot, width = 5, height = 3)
