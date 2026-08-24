@@ -154,12 +154,13 @@ def model_plot_means(data: pd.DataFrame, traits: list[str], args: argparse.Names
     value_cols = [*traits]
     if leaf_present:
         value_cols.append("mask_pixels")
-    plot_means = (
-        frame[group_cols + value_cols]
-        .dropna(subset=[*group_cols, *traits])
-        .groupby(group_cols, as_index=False)
-        .mean(numeric_only=True)
-    )
+    selected = frame[group_cols + value_cols].dropna(subset=[*group_cols, *traits])
+    if args.no_plot_averaging:
+        # Fit directly on image-level observations instead of collapsing images to one
+        # value per plot; each image remains its own row for the BLUE/variance-component fit.
+        plot_means = selected.copy()
+    else:
+        plot_means = selected.groupby(group_cols, as_index=False).mean(numeric_only=True)
     plot_means[traits] = winsorize(plot_means[traits].to_numpy(float), args.winsor_strength)
 
     fixed_covariates: list[str] = []
@@ -797,6 +798,12 @@ def parse_args() -> argparse.Namespace:
         "--metadata-optional",
         action="store_true",
         help="Use genotype and spatial columns already present in --scores instead of joining metadata.",
+    )
+    parser.add_argument(
+        "--no-plot-averaging",
+        action="store_true",
+        help="Fit BLUEs and variance components on image-level observations instead of first "
+        "averaging images to one value per plot. Each image is its own row in the model.",
     )
     parser.add_argument(
         "--skip-summaries",
