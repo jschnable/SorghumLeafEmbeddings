@@ -5,10 +5,11 @@
 # Panel A: Manhattan of the chr9:1.7 peak embedding dimensions that reach genome-wide
 #   significance in this window, with a local-LD track (r2 to the lead marker, all 925
 #   lines) and the gene-model track below (candidate gene in red).
-# Panel B: lead marker 9:1768703 -> Sobic.009G019100 leaf expression (log2 TPM), by allele.
-#   Significance is a marker~log2(TPM) PANICLE_MLM_LOCO_MULTI test (scripts/run_single_marker_test.py
-#   --log2, LOCO kinship excluding Chr09), matching the marker~log2(TPM) test ja_hotspots.R uses
-#   for its own candidate-expression panels.
+# Panel B: lead marker 9:1768703 -> Sobic.009G019100 leaf expression (raw TPM), by allele.
+#   The displayed p-value is from the existing marker~log2(TPM) PANICLE_MLM_LOCO_MULTI test
+#   (scripts/run_single_marker_test.py --log2, LOCO kinship excluding Chr09). Zero-TPM
+#   observations remain visible in the raw-scale plot but are undefined and therefore absent
+#   from that log2(TPM) test.
 # Panel C: lead marker 9:1768703 -> human disease score BLUE, Nebraska2025 only, by allele.
 # Panel D (included only if the lead marker reaches alpha = 0.05): lead marker ->
 #   logit(ExG percent-unhealthy-leaf-tissue) BLUE, Nebraska2025 only, by allele.
@@ -58,7 +59,7 @@ plot_region_manhattan <- function(gwas, meta, highlight_color)
   df <- gwas %>% filter(trait %in% keep_traits) %>% mutate(neglogp = -log10(p_value))
 
   ggplot(df, aes(POS/1e6, neglogp, color = trait)) +
-    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = meta$neglog10_threshold, linetype = 'dashed', linewidth = 0.4) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     annotate('text', x = meta$region_lo/1e6, y = max(df$neglogp), hjust = 0, vjust = 1,
@@ -75,7 +76,7 @@ plot_r2_manhattan <- function(ld, meta, highlight_color)
   df <- ld %>% mutate(tier = case_when(r2 > 0.5 ~ 'high', r2 > 0.3 ~ 'mid', TRUE ~ 'low'))
 
   ggplot(df, aes(POS/1e6, r2, color = tier)) +
-    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = c(0.3, 0.5), linetype = 'dotted', color = 'grey50', linewidth = 0.3) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     scale_x_continuous(name = NULL, limits = c(meta$region_lo, meta$region_hi)/1e6, expand = c(0, 0)) +
@@ -112,20 +113,20 @@ plot_candidate_expression <- function(expr_df, geno_col, candidate_id, colors, p
 {
   labs <- str_split(geno_col, ':')[[1]][3:4]
 
-  p <- ggplot(expr_df, aes(.data[[geno_col]], log2(tpm), fill = .data[[geno_col]])) +
+  p <- ggplot(expr_df, aes(.data[[geno_col]], tpm, fill = .data[[geno_col]])) +
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
     theme_use
 
-  r <- range(log2(expr_df$tpm), na.rm = TRUE); pad <- diff(r) * 0.20
+  r <- range(expr_df$tpm, na.rm = TRUE); pad <- diff(r) * 0.20
   y_bracket <- r[2] + pad * 0.45; tick <- pad * 0.15
   p +
     annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
             y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
             linewidth = 0.4) +
     annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
-    scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"),
+    scale_y_continuous(name = paste0(candidate_id, " Expression<br>(TPM)"),
                        expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) +
     theme(axis.title.y = element_markdown())
 }
@@ -175,7 +176,7 @@ p_man <- plot_region_manhattan(gwas, meta, HIGHLIGHT)
 p_ld <- plot_r2_manhattan(ld, meta, HIGHLIGHT)
 p_gene <- plot_gene_track(genes, exons, meta, CAND, CAND, HIGHLIGHT, ' 9')
 
-## ---- panel B: lead marker -> candidate expression (log2 TPM) ---------------
+## ---- panel B: lead marker -> candidate expression (raw TPM) ----------------
 
 tpm_sig <- read_csv('9:1768703:G:T_tpm_significance.csv', show_col_types = FALSE)
 tpm_pval <- tpm_sig$p_value[1]
@@ -183,7 +184,7 @@ tpm_pval <- tpm_sig$p_value[1]
 expr_df <- box %>%
   dplyr::select(genotype, tpm = G019100_tpm) %>%
   left_join(lead_marker_genotypes, by = 'genotype') %>%
-  filter(!is.na(.data[[MARKER_COL]]), !is.na(tpm), tpm > 0)
+  filter(!is.na(.data[[MARKER_COL]]), !is.na(tpm))
 
 p_B <- plot_candidate_expression(expr_df, MARKER_COL, CAND, ALLELE_COLORS, tpm_pval)
 

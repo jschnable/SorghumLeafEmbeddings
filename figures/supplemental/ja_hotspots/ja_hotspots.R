@@ -3,6 +3,8 @@
 # Right = chr9:61.9-62.4 Mb, candidate JAR1 jasmonate-Ile ligase Sobic.009G249900.
 # Bottom-right panel of each column: lead-marker effect on human disease score BLUE,
 # Nebraska2025 only (no other environments, no NE-common-genotype subset).
+# Expression boxes show untransformed TPM; their displayed p-values retain the
+# prespecified marker~log2(TPM) PANICLE model used in the manuscript analysis.
 # All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
 library(tidyverse)
 library(paletteer)
@@ -41,7 +43,7 @@ plot_region_manhattan <- function(gwas, meta, highlight_color)
   df <- gwas %>% filter(trait %in% keep_traits) %>% mutate(neglogp = -log10(p_value))
 
   ggplot(df, aes(POS/1e6, neglogp, color = trait)) +
-    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = meta$neglog10_threshold, linetype = 'dashed', linewidth = 0.4) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     annotate('text', x = meta$region_lo/1e6, y = max(df$neglogp), hjust = 0, vjust = 1,
@@ -58,7 +60,7 @@ plot_r2_manhattan <- function(ld, meta, highlight_color)
   df <- ld %>% mutate(tier = case_when(r2 > 0.5 ~ 'high', r2 > 0.3 ~ 'mid', TRUE ~ 'low'))
 
   ggplot(df, aes(POS/1e6, r2, color = tier)) +
-    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = c(0.3, 0.5), linetype = 'dotted', color = 'grey50', linewidth = 0.3) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     scale_x_continuous(name = NULL, limits = c(meta$region_lo, meta$region_hi)/1e6, expand = c(0, 0)) +
@@ -112,17 +114,17 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
     left_join(marker_tbl, by = 'genotype') %>%
     filter(!is.na(.data[[geno_col]]))
 
-  p <- ggplot(expr, aes(.data[[geno_col]], log2(tpm), fill = .data[[geno_col]])) +
+  p <- ggplot(expr, aes(.data[[geno_col]], tpm, fill = .data[[geno_col]])) +
     geom_boxplot(width = 0.5, outlier.size = 0.7, linewidth = 0.4) +
     scale_x_discrete(name = NULL, labels = labs) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
     labs(title = NULL) +
     theme_use
 
-  r <- range(log2(expr$tpm), na.rm = TRUE); pad <- diff(r) * 0.20
+  r <- range(expr$tpm, na.rm = TRUE); pad <- diff(r) * 0.20
   if (is.null(pval))
   {
-    p + scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) +
+    p + scale_y_continuous(name = paste0(candidate_id, " Expression<br>(TPM)"), expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) +
       theme(axis.title.y = element_markdown())
   }
   else
@@ -133,7 +135,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
               y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
               linewidth = 0.4) +
       annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
-      scale_y_continuous(name = paste0(candidate_id, " Expression<br>log<sub>2</sub>(TPM)"), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) + 
+      scale_y_continuous(name = paste0(candidate_id, " Expression<br>(TPM)"), limits = c(max(c(0, r[1] - pad)), r[2] + pad)) +
       theme(axis.title.y = element_markdown())
   }
 }
@@ -155,7 +157,7 @@ plot_disease_blue <- function(human_score_blue, geno_col, short_label, colors, p
     scale_x_discrete(name = NULL, labels = labs) +
     scale_y_continuous(name = 'Human Disease Score', limits = c(r[1] - pad * 0.1, r[2] + pad)) +
     scale_fill_manual(values = colors, labels = labs, guide = 'none') +
-    labs(title = short_label) +
+    labs(title = NULL) +
     theme_use
 }
 
@@ -196,7 +198,7 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
   # lysm_hotspot.R for its single-locus 'A' (top) / 'B','C' (bottom) scheme, just extended to
   # two side-by-side loci (a-c, d-f).
   # label_x nudges the expression panel's label right of its wrapped two-line y-axis title
-  # (candidate name + "Expression / log2(TPM)"), which is wide enough at the default x = 0
+  # (candidate name + "Expression / (TPM)"), which is wide enough at the default x = 0
   # inset to collide with the label text otherwise.
   row4 <- plot_grid(p_expr, p_disease, nrow = 1, labels = panel_labels[2:3], label_size = 11,
                     label_x = c(0.13, 0))
@@ -222,3 +224,5 @@ right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249
 
 ja_hotspots <- plot_grid(left_col, right_col, ncol = 2)
 ggsave('ja_hotspots.png', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
+ggsave('ja_hotspots.svg', plot = ja_hotspots, device = grDevices::svg,
+       bg = 'white', width = 6.5, height = 6.5)
