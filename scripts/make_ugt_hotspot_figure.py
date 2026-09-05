@@ -78,7 +78,7 @@ for patch, color in zip(box["boxes"], ["#e6a04b", "#f7d6a8"]):
     patch.set_facecolor(color)
 axes[3].set_ylabel(f"{gene}\nExpression (TPM)")
 axes[3].set_xlabel("Lead-marker genotype")
-axes[3].set_title(f"Raw-TPM mixed model: p = {test.p_value:.2e}; ALT effect = {test.effect_alt_allele:.3f} TPM/copy", fontsize=8)
+axes[3].set_title(f"Raw-TPM mixed model: p = {test.p_value:.2e}; T/T minus TC/TC = {2 * test.effect_alt_allele:.3f} TPM", fontsize=8)
 axes[3].text(-.12, 1.05, "b", transform=axes[3].transAxes, fontweight="bold", fontsize=12)
 fig.subplots_adjust(left=.17, right=.98, bottom=.08, top=.94)
 fig.savefig(E / "ugt_hotspot.png", dpi=300)
