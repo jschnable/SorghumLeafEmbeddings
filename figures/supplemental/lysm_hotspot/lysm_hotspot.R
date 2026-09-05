@@ -6,10 +6,8 @@
 #   significance in this window, with a local-LD track (r2 to the lead marker, all 925
 #   lines) and the gene-model track below (candidate gene in red).
 # Panel B: lead marker 9:1768703 -> Sobic.009G019100 leaf expression (raw TPM), by allele.
-#   The displayed p-value is from the existing marker~log2(TPM) PANICLE_MLM_LOCO_MULTI test
-#   (scripts/run_single_marker_test.py --log2, LOCO kinship excluding Chr09). Zero-TPM
-#   observations remain visible in the raw-scale plot but are undefined and therefore absent
-#   from that log2(TPM) test.
+#   Expression and the displayed p-value use SG2021-only raw TPM (zeros retained) with the
+#   PANICLE_MLM_LOCO_MULTI test and Chr09 LOCO kinship.
 # Panel C: lead marker 9:1768703 -> human disease score BLUE, Nebraska2025 only, by allele.
 # Panel D (included only if the lead marker reaches alpha = 0.05): lead marker ->
 #   logit(ExG percent-unhealthy-leaf-tissue) BLUE, Nebraska2025 only, by allele.
@@ -181,8 +179,7 @@ p_gene <- plot_gene_track(genes, exons, meta, CAND, CAND, HIGHLIGHT, ' 9')
 tpm_sig <- read_csv('9:1768703:G:T_tpm_significance.csv', show_col_types = FALSE)
 tpm_pval <- tpm_sig$p_value[1]
 
-expr_df <- box %>%
-  dplyr::select(genotype, tpm = G019100_tpm) %>%
+expr_df <- read_csv('candidate_expression.csv', show_col_types = FALSE) %>%
   left_join(lead_marker_genotypes, by = 'genotype') %>%
   filter(!is.na(.data[[MARKER_COL]]), !is.na(tpm))
 

@@ -1,10 +1,10 @@
-# Supplemental figure: two jasmonate (JA) pathway leaf-embedding hotspots.
-# Left  = chr4:4.7-4.8 Mb, candidate VQ jasmonate-defense regulator Sobic.004G058000.
+# Supplemental figure: two disease-linked leaf-embedding hotspots with candidate cis-eQTLs.
+# Left  = chr4:4.7-4.8 Mb, candidate CYP97B carotene epsilon-hydroxylase Sobic.004G057900.
 # Right = chr9:61.9-62.4 Mb, candidate JAR1 jasmonate-Ile ligase Sobic.009G249900.
 # Bottom-right panel of each column: lead-marker effect on human disease score BLUE,
 # Nebraska2025 only (no other environments, no NE-common-genotype subset).
-# Expression boxes show untransformed TPM; their displayed p-values retain the
-# prespecified marker~log2(TPM) PANICLE model used in the manuscript analysis.
+# Expression boxes show untransformed SG2021 TPM and their displayed p-values come from
+# marker~raw-TPM PANICLE models on the same data (zeros retained).
 # All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
 library(tidyverse)
 library(paletteer)
@@ -219,7 +219,7 @@ human_score_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = F
 chr4_colors <- paletteer_d('RColorBrewer::Paired')[c(4, 3)]
 chr9_colors <- paletteer_d('RColorBrewer::Paired')[c(8, 7)]
 
-left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G058000', 'Sobic.004G058000', '#2E7D32FF', chr4_colors, c('a', 'b', 'c'))
+left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G057900', 'Sobic.004G057900', '#2E7D32FF', chr4_colors, c('a', 'b', 'c'))
 right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249900', '#B15928FF', chr9_colors, c('d', 'e', 'f'))
 
 ja_hotspots <- plot_grid(left_col, right_col, ncol = 2)
