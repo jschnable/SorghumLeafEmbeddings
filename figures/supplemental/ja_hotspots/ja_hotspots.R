@@ -1,11 +1,12 @@
 # Supplemental figure: two disease-linked leaf-embedding hotspots with candidate cis-eQTLs.
-# Left  = chr4:4.7-4.8 Mb, candidate CYP97B carotene epsilon-hydroxylase Sobic.004G057900.
+# Left  = chr4:4.7-4.8 Mb, candidate CYP97B carotenoid hydroxylase Sobic.004G057900.
 # Right = chr9:61.9-62.4 Mb, candidate JAR1 jasmonate-Ile ligase Sobic.009G249900.
 # Bottom-right panel of each column: lead-marker effect on human disease score BLUE,
 # Nebraska2025 only (no other environments, no NE-common-genotype subset).
 # Expression boxes show untransformed SG2021 TPM and their displayed p-values come from
 # marker~raw-TPM PANICLE models on the same data (zeros retained).
-# All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
+# Expression/locus inputs come from scripts/subset_figure_data.R; current disease
+# inputs come from scripts/prepare_candidate_disease_panels.py.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
@@ -189,17 +190,19 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
   } else NULL
   p_expr <- plot_candidate_expression(str_c(prefix, '_candidate_expression.csv'), marker_col, lead_marker_genotypes, short_label, allele_colors, candidate_id, tpm_pval)
 
-  disease_pval <- read_csv(str_c(prefix, '_ja_score_significance.csv'), show_col_types = FALSE) %>%
-    filter(group == 'Nebraska2025') %>% pull(p_value)
+  disease_pval <- disease_tests %>%
+    filter(marker == marker_col, phenotype_column == 'human_score_blue') %>% pull(p_value)
+  stopifnot(length(disease_pval) == 1)
   p_disease <- plot_disease_blue(human_score_blue, marker_col, short_label, allele_colors, disease_pval)
 
   # lowercase, bold letter run per column: the Manhattan/LD/gene track stack is one labeled
   # panel, and the two bottom panels get their own labels -- same nesting cowplot uses in
   # lysm_hotspot.R for its single-locus 'A' (top) / 'B','C' (bottom) scheme, just extended to
   # two side-by-side loci (a-c, d-f).
-  # label_x nudges the expression panel's label right of its wrapped two-line y-axis title
-  # (candidate name + "Expression / (TPM)"), which is wide enough at the default x = 0
-  # inset to collide with the label text otherwise.
+  # Reserve space above the top tick for letters without overlapping the vertical
+  # expression-axis title at the far left.
+  p_expr <- p_expr + theme(plot.margin = margin(16, 5.5, 5.5, 5.5))
+  p_disease <- p_disease + theme(plot.margin = margin(16, 5.5, 5.5, 5.5))
   row4 <- plot_grid(p_expr, p_disease, nrow = 1, labels = panel_labels[2:3], label_size = 11,
                     label_x = c(0.13, 0))
   top_stack <- plot_grid(p_man, p_ld, p_gene, ncol = 1, align = 'v', axis = 'lr',
@@ -212,9 +215,12 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
 
 lead_marker_genotypes <- read_csv('lead_marker_genotypes.csv', show_col_types = FALSE)
 lead_marker_cols <- list(chr4 = names(lead_marker_genotypes)[2], chr9 = names(lead_marker_genotypes)[3])
+disease_inputs <- '../../../data/provided/candidate_disease_panels'
+disease_genotypes <- read_csv(file.path(disease_inputs, 'genotypes.csv'), show_col_types = FALSE)
+disease_tests <- read_csv(file.path(disease_inputs, 'tests.csv'), show_col_types = FALSE)
 
-human_score_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
-  left_join(lead_marker_genotypes, join_by(genotype), relationship = 'many-to-one')
+human_score_blue <- read_csv('../lysm_hotspot/human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
+  inner_join(disease_genotypes, join_by(genotype), relationship = 'many-to-one')
 
 chr4_colors <- paletteer_d('RColorBrewer::Paired')[c(4, 3)]
 chr9_colors <- paletteer_d('RColorBrewer::Paired')[c(8, 7)]

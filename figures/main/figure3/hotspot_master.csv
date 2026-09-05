@@ -1,6 +1,6 @@
 peak_marker,chrom,peak_marker_pos_bp,peak_start_bp,peak_start_Mbp,peak_end_bp,peak_end_Mbp,sam3_hits,dino2_hits,max_sam3_hit_density,max_dino2_hit_density,human_score_pvalue_Nebraska2025,exg_pvalue_Nebraska2025,disease_associated,candidate_gene_model,candidate_gene_short_name,function_phrase
 2:52490664:GGAGT:G,2,52490664,52300000,52.3,52699999,52.7,40,7,26,4,1.57E-05,2.01E-05,Y,Sobic.002G164900,,GDSL esterase/lipase for cuticle formation
-4:4724594:G:C,4,4724594,4700000,4.7,4799999,4.8,14,3,14,3,2.90E-05,1.02E-05,Y,Sobic.004G058000,,Regulator of jasmonate-dependent defense signaling
+4:4724594:G:C,4,4724594,4700000,4.7,4799999,4.8,14,3,14,3,2.90E-05,1.02E-05,Y,Sobic.004G057900,,CYP97B carotenoid hydroxylase; predicted lutein biosynthesis
 4:60556616:TC:T,4,60556616,60500000,60.5,60599999,60.6,10,1,10,1,4.25E-05,0.966243657,Y,Sobic.004G230800,,UDP-glycosyltransferase contributing to drought tolerance
 4:64959396:G:A,4,64959396,64900000,64.9,64999999,65,24,5,24,5,0.020541503,0.046671325,Y,Sobic.004G280800,Tan1,WD40 regulator of grain tannin and anthocyanin biosynthesis
 4:65447981:G:A,4,65447981,65400000,65.4,65499999,65.5,22,5,22,5,1.55E-05,0.72085664,Y,Sobic.004G286700,,GDSL-type esterase/lipase for xylan deacetylation

@@ -1,5 +1,13 @@
 # Current-model GDSL supplemental figure inputs
 
+The Michigan 2020/2021 leaf fresh- and dry-weight measurements are from Singh,
+Newton, Schnable and Thompson (2025), *Unveiling shared genetic regulators of
+plant architectural and biomass yield traits in the Sorghum Association Panel*,
+Journal of Experimental Botany 76:1625–1643, DOI: 10.1093/jxb/eraf012. Their
+single-plant leaf fresh/dry biomass measurements correspond to the ASAT Michigan
+trials in the canonical trait archive. Our water-content fraction is calculated
+from those weights; it is not a time-course water-loss assay.
+
 Regenerate the water analysis with `python scripts/verify_chr2_leaf_water.py`, then
 run `python scripts/prepare_chr2_leaf_water_figure.py` from the repository root.
 The latter exports the complete-covariate water sample and current test results,

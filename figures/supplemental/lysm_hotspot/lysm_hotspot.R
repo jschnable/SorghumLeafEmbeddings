@@ -11,10 +11,10 @@
 # Panel C: lead marker 9:1768703 -> human disease score BLUE, Nebraska2025 only, by allele.
 # Panel D (included only if the lead marker reaches alpha = 0.05): lead marker ->
 #   logit(ExG percent-unhealthy-leaf-tissue) BLUE, Nebraska2025 only, by allele.
-# Panels C/D significance + BLUEs come from the same standalone hotspot_disease_associations
-# LOCO-MLM pipeline / Nebraska2025 BLUE source as ja_hotspots.R's disease panels.
+# Panels C/D use scripts/prepare_candidate_disease_panels.py and the same current
+# model / Nebraska2025 BLUE source as ja_hotspots.R's disease panels.
 #
-# All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
+# Locus/expression inputs are prepared by scripts/subset_figure_data.R.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
@@ -187,17 +187,24 @@ p_B <- plot_candidate_expression(expr_df, MARKER_COL, CAND, ALLELE_COLORS, tpm_p
 
 ## ---- panel C: lead marker -> human disease score BLUE, Nebraska2025 --------
 
+disease_inputs <- '../../../data/provided/candidate_disease_panels'
+disease_genotypes <- read_csv(file.path(disease_inputs, 'genotypes.csv'), show_col_types = FALSE) %>%
+  transmute(genotype, !!MARKER_COL := case_when(.data[[MARKER_COL]] == '0/0' ~ 'G',
+                                              .data[[MARKER_COL]] == '1/1' ~ 'T',
+                                              TRUE ~ NA_character_))
 human_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
-  left_join(lead_marker_genotypes, by = 'genotype')
-peak_sig <- read_csv('peak_marker_nebraska_significance.csv', show_col_types = FALSE)
-human_pval <- filter(peak_sig, phenotype == 'human_score')$p_value
+  inner_join(disease_genotypes, by = 'genotype')
+peak_sig <- read_csv(file.path(disease_inputs, 'tests.csv'), show_col_types = FALSE) %>%
+  filter(marker == '9:1768703:G:T')
+human_pval <- filter(peak_sig, phenotype_column == 'human_score_blue')$p_value
+stopifnot(length(human_pval) == 1)
 
 p_C <- plot_marker_phenotype(human_blue, MARKER_COL, 'human_score_blue', ALLELE_COLORS,
                              'Human Disease Score', human_pval)
 
 ## ---- panel D (only if significant): lead marker -> logit(ExG) BLUE ---------
 
-exg_pval <- filter(peak_sig, phenotype == 'exg_logit')$p_value
+exg_pval <- filter(peak_sig, phenotype_column == 'exg_logit_blue')$p_value
 include_D <- length(exg_pval) == 1 && is.finite(exg_pval) && exg_pval < 0.05
 
 panels <- list(p_B, p_C)
@@ -205,7 +212,7 @@ panel_labels <- c('b', 'c')
 if (include_D)
 {
   exg_blue <- read_csv('exg_logit_blue_nebraska.csv', show_col_types = FALSE) %>%
-    left_join(lead_marker_genotypes, by = 'genotype')
+    inner_join(disease_genotypes, by = 'genotype')
   p_D <- plot_marker_phenotype(exg_blue, MARKER_COL, 'exg_logit_blue', ALLELE_COLORS,
                                'logit(Percent Unhealthy Leaf Tissue)', exg_pval)
   panels <- list(p_B, p_C, p_D)

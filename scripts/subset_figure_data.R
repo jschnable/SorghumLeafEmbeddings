@@ -306,7 +306,7 @@ write_csv(hotspot_groups, 'figures/supplemental/embedding_cor_hotspot_affinity/h
 
 
 # ---- figures/supplemental/ja_hotspots ----
-# Two jasmonate-pathway disease hotspots: chr4:4.7-4.8 Mb (VQ gene Sobic.004G058000,
+# Two disease hotspots: chr4:4.7-4.8 Mb (CYP97B gene Sobic.004G057900,
 # hotspot '4a') and chr9:61.9-62.4 Mb (JAR1 gene Sobic.009G249900, hotspot '9c'). Region
 # GWAS / LD / gene-model inputs were already computed by the per-locus compute_*_peak.py
 # scripts in figures/chr4_lutein_peak and figures/chr9_62_peak; this block only converts/
@@ -375,16 +375,16 @@ read_csv('data/generatable/hotspot_disease_associations/human_scores/9:62301540:
   filter(group == 'Nebraska2025') %>%
   write_csv(file.path(ja_dir, 'chr9_ja_score_significance.csv'))
 
-# candidate-gene leaf expression (log2 TPM+1) by lead-marker allele, for the panel-4
-# boxplots. NE2021 field-trial samples only (experiment=='SG2021'; see
-# data/externalsourcerequired/tpm/sorghum_rnaseq_methods.md -- SG2021 is entirely leaf
-# tissue, 736 samples / 729 genotypes).
-expr_dir <- 'data/externalsourcerequired/tpm'
-candidate_genes <- c(chr4 = 'Sobic.004G058000', chr9 = 'Sobic.009G249900')
-meta_expr <- read_tsv(file.path(expr_dir, 'sample_metadata.tsv')) %>%
+# candidate-gene leaf expression (raw TPM) by lead-marker allele, for the panel-4
+# boxplots. NE2021 field-trial samples only (experiment=='SG2021' in the original
+# ExpressionData metadata below; 736 leaf samples / 729 genotypes).
+expr_dir <- 'figures/embedding_gwas_hotspots/ExpressionData'
+candidate_genes <- c(chr4 = 'Sobic.004G057900', chr9 = 'Sobic.009G249900')
+meta_expr <- read_tsv(file.path(expr_dir, 'sample_metadata (3).tsv')) %>%
   filter(experiment == 'SG2021') %>%
+  mutate(genotype = str_replace_all(genotype, ' ', '')) %>%
   dplyr::select(sample_id, genotype)  # VariantAnnotation (loaded above) masks dplyr::select
-tpm <- read_csv(file.path(expr_dir, 'gene_tpm.csv.gz'))
+tpm <- read_csv(file.path(expr_dir, 'gene_tpm (3).csv.gz'))
 gene_id_col <- names(tpm)[1]
 for(nm in names(candidate_genes))
 {
@@ -500,7 +500,7 @@ read_csv('data/generatable/hotspot_disease_associations/human_scores/chr4:654479
   write_csv(file.path(gdsl_dir, 'chr4_gdsl_score_significance.csv'))
 
 # chr4:65.4 candidate-gene (Sobic.004G286700, GDSL/CE16 acetyl-xylan esterase) leaf
-# expression (log2 TPM+1), for the panel-4 boxplot kept on the chr4 side (as in
+# expression (raw TPM), for the panel-4 boxplot kept on the chr4 side (as in
 # ja_hotspots.R). Same NE2021 SG2021 field-trial samples as the ja_hotspots block above.
 gdsl_row <- filter(tpm, .data[[gene_id_col]] == 'Sobic.004G286700')
 gdsl_vals <- gdsl_row %>% dplyr::select(-1) %>% pivot_longer(everything(), names_to = 'sample_id', values_to = 'tpm')
@@ -520,7 +520,7 @@ write_csv(gdsl_expr_geno, file.path(gdsl_dir, 'chr4_candidate_expression.csv'))
 #     figures/supplemental/gdsl_hotspots/chr2_gloss.csv gloss 2:52490664:GGAGT:G \
 #     --out-file figures/supplemental/gdsl_hotspots/chr2_gloss_significance.csv
 #   conda run -n panicle_dev python scripts/run_single_marker_test.py \
-#     figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv tpm 4:65447981:G:A --log2 \
+#     figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv tpm 4:65447981:G:A --no-covariates \
 #     --out-file figures/supplemental/gdsl_hotspots/chr4_candidate_tpm_significance.csv
 # gdsl_hotspots.R's plot_gloss_boxplot()/plot_candidate_expression() fall back to no bracket
 # if either file is missing.
@@ -548,6 +548,14 @@ file.copy('figures/chr4_tan1_peak/bin_pergeno.csv', file.path(chr4_yellowness_di
 # peak_dose/lof_dose (no VCF re-read needed, this panel uses the same 925-genotype panel).
 lysm_dir <- 'figures/supplemental/lysm_hotspot'
 lysm_src <- 'figures/lysm_rlk_story'
+
+# Use the same SG2021-only raw-TPM aggregation as the other expression panels.
+lysm_row <- filter(tpm, .data[[gene_id_col]] == 'Sobic.009G019100')
+lysm_vals <- lysm_row %>% dplyr::select(-1) %>%
+  pivot_longer(everything(), names_to = 'sample_id', values_to = 'tpm')
+meta_expr %>% left_join(lysm_vals, by = 'sample_id') %>% drop_na(tpm) %>%
+  group_by(genotype) %>% summarise(tpm = mean(tpm), .groups = 'drop') %>%
+  write_csv(file.path(lysm_dir, 'candidate_expression.csv'))
 
 convert_region_gwas(file.path(lysm_src, 'region_gwas.npz'), file.path(lysm_dir, 'region_gwas.csv'))
 
