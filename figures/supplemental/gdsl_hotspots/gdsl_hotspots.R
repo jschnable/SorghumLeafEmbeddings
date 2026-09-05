@@ -136,7 +136,7 @@ plot_region_manhattan <- function(gwas, meta, highlight_color)
   df <- gwas %>% filter(trait %in% keep_traits) %>% mutate(neglogp = -log10(p_value))
 
   ggplot(df, aes(POS/1e6, neglogp, color = trait)) +
-    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, alpha = 0.8, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = meta$neglog10_threshold, linetype = 'dashed', linewidth = 0.4) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     annotate('text', x = meta$region_lo/1e6, y = max(df$neglogp), hjust = 0, vjust = 1,
@@ -153,7 +153,7 @@ plot_r2_manhattan <- function(ld, meta, highlight_color)
   df <- ld %>% mutate(tier = case_when(r2 > 0.5 ~ 'high', r2 > 0.3 ~ 'mid', TRUE ~ 'low'))
 
   ggplot(df, aes(POS/1e6, r2, color = tier)) +
-    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600) +
+    ggrastr::rasterise(geom_point(size = 0.4, show.legend = FALSE), dpi = 600, dev = 'ragg') +
     geom_hline(yintercept = c(0.3, 0.5), linetype = 'dotted', color = 'grey50', linewidth = 0.3) +
     geom_vline(xintercept = meta$peak_marker/1e6, linetype = 'dotted', color = highlight_color, linewidth = 0.5) +
     scale_x_continuous(name = NULL, limits = c(meta$region_lo, meta$region_hi)/1e6, expand = c(0, 0)) +
@@ -217,7 +217,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
   r <- range(expr$tpm, na.rm = TRUE); pad <- diff(r) * 0.20
   if (is.null(pval))
   {
-    p + scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)'), expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad))
+    p + scale_y_continuous(name = 'Expression (TPM)', expand = expansion(mult = c(0.05, 0.10)), limits = c(max(c(0, r[1] - pad)), r[2] + pad))
   }
   else
   {
@@ -227,7 +227,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
               y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
               linewidth = 0.4) +
       annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
-      scale_y_continuous(name = str_c(candidate_id, ' Expression\n(TPM)'), limits = c(max(c(0, r[1] - pad)), r[2] + pad))
+      scale_y_continuous(name = 'Expression (TPM)', limits = c(max(c(0, r[1] - pad)), r[2] + pad))
   }
 }
 
@@ -313,7 +313,8 @@ p_gloss <- plot_gloss_boxplot('chr2_gloss.csv', lead_marker_cols$chr2, lead_mark
                               allele_labels = c('GGAGT', 'G'), pval = gloss_pval)
 
 genotypes_common <- read_csv('genotypes_common.csv', show_col_types = FALSE)
-human_scores_raw <- read_csv('human_disease_scores.csv', show_col_types = FALSE)
+human_scores_raw <- read_csv('../ja_hotspots/human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
+  rename(human_score = human_score_blue) %>% mutate(environment = 'Nebraska2025')
 nec_scores <- filter(human_scores_raw, environment == 'Nebraska2025' & (genotype %in% genotypes_common$genotype)) %>%
   mutate(environment = 'Nebraska2025-Common')
 human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
@@ -340,8 +341,12 @@ p_disease <- rlang::inject(
                            allele_labels = c('GGAGT', 'G'))
 )
 p_disease <- p_disease +
+  labs(fill = NULL) +
+  guides(fill = guide_legend(title = NULL, ncol = 1)) +
+  scale_y_continuous(name = 'Human disease\nscore BLUE', expand = expansion(mult = c(0, 0.15))) +
   theme(legend.key.size = unit(0.3, 'cm'),
-       legend.text = element_text(size = 9, color = 'black'),
+       legend.position = 'bottom',
+       legend.text = element_text(size = 7, color = 'black'),
        legend.title = element_text(size = 9, color = 'black'),
        legend.margin = margin(0, 0, 0, 0),
        legend.box.margin = margin(0, 0, -4, 0))
@@ -352,7 +357,10 @@ row4_chr2 <- plot_grid(p_gloss, p_disease, nrow = 1, rel_widths = c(1, 0.65),
 ## ---- chr4 column: Manhattan/LD/gene track + candidate expr + disease chart -
 
 tpm_pval <- if (file.exists('chr4_candidate_tpm_significance.csv')) read_csv('chr4_candidate_tpm_significance.csv', show_col_types = FALSE)$p_value[1] else NULL
-p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, lead_marker_genotypes, '', chr4_colors, 'Sobic.004G286700', tpm_pval)
+expr_genotypes <- read_csv('../../../data/provided/chr2_leaf_water_figure/chr4_expression_genotypes.csv', show_col_types = FALSE)
+p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, expr_genotypes, '', chr4_colors, 'Sobic.004G286700', tpm_pval)
+p_expr <- p_expr + labs(y = 'Expression (TPM)', title = 'Sobic.004G286700') +
+  theme(plot.title = element_text(size = 8, face = 'italic'))
 
 # across all four sampled environments (NE, NE-C, AL, GA) -- the same format panel A's
 # disease chart used before this update, just kept here for the chr4 lead marker instead of
@@ -366,8 +374,12 @@ p_disease_chr4 <- rlang::inject(
                            marker_name = '4:65447981', pvals = chr4_marker_pvals)
 )
 p_disease_chr4 <- p_disease_chr4 +
+  labs(fill = NULL) +
+  guides(fill = guide_legend(title = NULL, ncol = 1)) +
+  scale_y_continuous(name = 'Human disease\nscore BLUE', expand = expansion(mult = c(0, 0.15))) +
   theme(legend.key.size = unit(0.3, 'cm'),
-       legend.text = element_text(size = 9, color = 'black'),
+       legend.position = 'bottom',
+       legend.text = element_text(size = 7, color = 'black'),
        legend.title = element_text(size = 9, color = 'black'),
        legend.margin = margin(0, 0, 0, 0),
        legend.box.margin = margin(0, 0, -4, 0))
@@ -391,5 +403,30 @@ assemble_locus_column <- function(top, row4, top_label)
 left_col <- assemble_locus_column(top2, row4_chr2, 'a')
 right_col <- assemble_locus_column(top4, row4_chr4, 'd')
 
-gdsl_hotspots <- plot_grid(left_col, right_col, ncol = 2)
-ggsave('gdsl_hotspots.svg', plot = gdsl_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
+# Raw leaf-water fraction, with current PANICLE tests (including the one heterozygote).
+# Only homozygotes are displayed; the fitted contrast is ALT/ALT minus REF/REF.
+water_data <- read_csv('../../../data/provided/chr2_leaf_water_figure/phenotypes.csv', show_col_types = FALSE) %>%
+  filter(peak_dose %in% c(0, 2)) %>%
+  mutate(environment = factor(env_id, levels = c('MI2020', 'MI2021', 'MI2020+MI2021'),
+                              labels = c('Michigan 2020', 'Michigan 2021', 'Pooled')),
+         allele = factor(peak_dose, levels = c(0, 2), labels = c('GGAGT/GGAGT', 'G/G')))
+water_tests <- read_csv('../../../data/provided/chr2_leaf_water_figure/tests.csv', show_col_types = FALSE) %>%
+  filter(analysis == 'water_fraction_current') %>%
+  mutate(environment = factor(group, levels = c('MI2020', 'MI2021', 'MI2020+MI2021'),
+                              labels = c('Michigan 2020', 'Michigan 2021', 'Pooled')),
+         label = sprintf('p = %.2g; difference = %.2f pp', p_value, 100 * alt_homozygote_minus_ref))
+water_counts <- water_data %>% count(environment, allele) %>% mutate(label = paste0('n = ', n))
+p_water <- ggplot(water_data, aes(allele, 100 * water_fraction, fill = allele)) +
+  geom_boxplot(width = 0.5, outlier.size = 0.6, linewidth = 0.4) +
+  geom_text(data = water_counts, aes(x = allele, y = 25, label = label), inherit.aes = FALSE, size = 2.5) +
+  geom_text(data = water_tests, aes(x = 1.5, y = 92, label = label), inherit.aes = FALSE, size = 2.5) +
+  facet_wrap(~environment, nrow = 1) +
+  scale_fill_manual(values = chr2_colors, guide = 'none') +
+  scale_y_continuous(name = 'Leaf water content (%)', limits = c(20, 96), breaks = c(30, 50, 70, 90)) +
+  labs(x = 'Lead-marker homozygous genotype') + theme_use +
+  theme(strip.text = element_text(size = 9), axis.text.x = element_text(size = 8))
+
+gdsl_hotspots <- plot_grid(plot_grid(left_col, right_col, ncol = 2), p_water,
+                           ncol = 1, rel_heights = c(5.65, 1.85), labels = c('', 'g'), label_size = 11)
+ggsave('gdsl_hotspots.svg', plot = gdsl_hotspots, device = grDevices::svg, dpi = 300, bg = 'white', width = 6.5, height = 7.5)
+ggsave('gdsl_hotspots.png', plot = gdsl_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 7.5)

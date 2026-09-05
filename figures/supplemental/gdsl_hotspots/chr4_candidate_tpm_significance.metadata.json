@@ -1,7 +1,7 @@
 {
   "phenotype_csv": "figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv",
   "phenotype_column": "tpm",
-  "log2": true,
+  "log2": false,
   "genotype_column": "genotype",
   "env_column": null,
   "env": null,
@@ -17,20 +17,26 @@
     "REF": "G",
     "ALT": "A"
   },
-  "genotype": "/Users/jensinadavis/Documents/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype": "/home/james/leaf_imaging/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
   "genotype_format": "vcf",
   "n_groups": 1,
   "n_tested": 1,
   "n_pcs": 5,
-  "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs as covariates, forced LRT refinement",
+  "covariate_file": "/home/james/leaf_imaging/SorghumLeafEmbeddings/data/provided/gwas_covariates_leaf_area_flowering_time.csv",
+  "covariate_cols": [
+    "mask_pixels_blue",
+    "days_to_flower_blue"
+  ],
+  "cv_model": "5 PCs + 2 genotype-level covariates",
+  "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs (+ covariates if enabled) as CV, forced LRT refinement",
   "lrt_refinement": true,
   "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",
   "min_samples": 30,
   "min_homozygote_count": 3,
-  "elapsed_seconds": 32.466672957874835,
+  "elapsed_seconds": 18.090158446000714,
   "package_versions": {
-    "panicle": "0.3.5",
-    "numpy": "2.4.6",
-    "pandas": "3.0.3"
+    "panicle": "0.4.0",
+    "numpy": "1.26.4",
+    "pandas": "2.1.4+dfsg"
   }
 }
