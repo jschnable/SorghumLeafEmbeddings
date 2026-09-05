@@ -18,9 +18,23 @@ biomass, and p=0.7889 for dry biomass. Historical `chr2_story` and standalone
 `wdl1_leafwater` figures retain older analyses and should not supply manuscript
 statistics. The manuscript figure is `fig:s_gdsl_hotspots`, panel g.
 
-The expression panel uses untransformed TPM with zero-expression observations
-retained. Recompute with:
+The expression panel uses Nebraska 2021 (SG2021) untransformed TPM, averaged
+within genotype, with zero-expression observations retained. Its genotype map
+does not impose leaf-area/flowering-time completeness: the expression model uses
+only five genetic PCs and LOCO kinship (660 individuals; 64 GG, 3 GA, 593 AA).
+The committed expression CSV is the final input used by panel e. Recompute with:
 
 ```
-python scripts/run_single_marker_test.py figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv tpm 4:65447981:G:A --out-file figures/supplemental/gdsl_hotspots/chr4_candidate_tpm_significance.csv --cpu 4
+python scripts/run_single_marker_test.py figures/supplemental/gdsl_hotspots/chr4_candidate_expression.csv tpm 4:65447981:G:A --no-covariates --out-file figures/supplemental/gdsl_hotspots/chr4_candidate_tpm_significance.csv --cpu 4
 ```
+
+Panels c and f use the final single-marker results in `chr2_human_current.csv`
+and `chr4_human_current.csv`. Both use the committed
+`figures/supplemental/ja_hotspots/human_score_blue_nebraska.csv` phenotype
+(`human_score_blue`) with `scripts/run_single_marker_test.py`, markers
+`2:52490664:GGAGT:G` and `4:65447981:G:A`, and the default five PCs, LOCO kinship,
+leaf-area and flowering-time covariates. The figure-input CSVs label the single
+group `Nebraska2025`. Both tests contain 891 individuals. `disease_genotypes.csv`
+matches the complete-covariate population and PANICLE-imputed calls; heterozygotes
+are retained in tests but omitted from homozygote plots. These small CSVs are
+final paper-figure inputs, not exploratory analysis exports.

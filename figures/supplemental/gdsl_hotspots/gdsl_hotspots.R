@@ -321,14 +321,14 @@ human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
   mutate(environment = factor(environment,
                               levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'),
                               labels = c('NE', 'NE-C', 'AL', 'GA'))) %>%
-  left_join(lead_marker_genotypes, join_by(genotype), relationship = 'many-to-one')
+  left_join(read_csv('../../../data/provided/chr2_leaf_water_figure/disease_genotypes.csv', show_col_types = FALSE), join_by(genotype), relationship = 'many-to-one')
 
 # NE only (Nebraska2025), per the bottom-row disease panel now being scoped to a single
 # environment -- drops the NE-C common-genotype subset and the AL/GA sites that the
 # multi-environment version of this panel (still used for the chr4 column below) shows.
 human_scores_marker <- human_scores %>%
   filter(!is.na(.data[[lead_marker_cols$chr2]]) & environment == 'NE')
-chr2_marker_pvals <- load_marker_pvals('chr2_gloss_score_significance.csv')
+chr2_marker_pvals <- load_marker_pvals('../../../data/provided/chr2_leaf_water_figure/chr2_human_current.csv')
 # plotAssociationStability() captures `marker` via base substitute()/{{ }}, which only works
 # for a bare/backtick symbol known at write time; rlang::inject() + sym() lets us pass in the
 # runtime-determined marker column name (e.g. "2:52490664:GGAGT:G") in its place.
@@ -366,7 +366,7 @@ p_expr <- p_expr + labs(y = 'Expression (TPM)', title = 'Sobic.004G286700') +
 # disease chart used before this update, just kept here for the chr4 lead marker instead of
 # being narrowed to NE only.
 human_scores_marker_chr4 <- human_scores %>% filter(!is.na(.data[[lead_marker_cols$chr4]]) & environment=='NE') 
-chr4_marker_pvals <- load_marker_pvals('chr4_gdsl_score_significance.csv')
+chr4_marker_pvals <- load_marker_pvals('../../../data/provided/chr2_leaf_water_figure/chr4_human_current.csv')
 p_disease_chr4 <- rlang::inject(
   plotAssociationStability(human_scores_marker_chr4, human_score, !!rlang::sym(lead_marker_cols$chr4),
                            colors = chr4_colors,

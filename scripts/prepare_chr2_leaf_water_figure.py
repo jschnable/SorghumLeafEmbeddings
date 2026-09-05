@@ -25,13 +25,22 @@ data.to_csv(out / "phenotypes.csv", index=False)
 tests.to_csv(out / "tests.csv", index=False)
 print(data.groupby(["env_id", "peak_dose"]).size())
 
-# Match the expression display to the current VCF and complete-covariate sample.
+# Match the expression display to the current VCF. Expression models use PCs
+# and LOCO kinship only, so do not apply leaf-area/flowering-time completeness.
 vcf = ROOT / "data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz"
 geno, ids, genome_map = load_genotype_file(vcf, file_format="vcf", precompute_alleles=False)
 idx = find_marker_index(marker_frame(genome_map), "4:65447981:G:A")
 dose = geno.subset_markers(np.array([idx])).to_numpy()[:, 0]
 expr_gt = pd.DataFrame({"genotype": [str(i).replace(" ", "") for i in ids],
                         "4:65447981:G:A": pd.Series(dose).map({0: "0/0", 2: "1/1"})})
-expr_gt = expr_gt[expr_gt.genotype.isin(eligible)]
 expr_gt = expr_gt[expr_gt["4:65447981:G:A"].isin(["0/0", "1/1"])]
 expr_gt.to_csv(out / "chr4_expression_genotypes.csv", index=False)
+
+# Disease panels use the full current-model, covariate-complete population.
+disease_gt = pd.DataFrame({"genotype": [str(i).replace(" ", "") for i in ids]})
+for marker in ["2:52490664:GGAGT:G", "4:65447981:G:A"]:
+    marker_idx = find_marker_index(marker_frame(genome_map), marker)
+    marker_dose = geno.subset_markers(np.array([marker_idx])).to_numpy()[:, 0]
+    disease_gt[marker] = pd.Series(marker_dose).map({0: "0/0", 2: "1/1"})
+disease_gt = disease_gt[disease_gt.genotype.isin(eligible)]
+disease_gt.to_csv(out / "disease_genotypes.csv", index=False)
