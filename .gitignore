@@ -36,26 +36,10 @@ figures/main/Fig2_embeddings/sam3_cor.*
 figures/main/Fig3_hotspots/figure3_from_code.png
 figures/lysm_rlk_story/lysm_rlk_story_v1_deprecated.png
 
-# Archived generated files stay local; archiving must not add old model outputs to Git.
-deprecated/data/generatable/
-deprecated/**/__pycache__/
-deprecated/.pytest_cache/
-deprecated/**/*.log
-deprecated/**/*.pid
-deprecated/**/*.status
-deprecated/**/*.out
-deprecated/**/.Rhistory
-deprecated/**/*.npy
-
 # Reproducible population PCs and one-off input/test audits are local evidence.
-deprecated/**/geno_pcs.eigenvec
 **/input_audit.json
 **/test_metadata.json
 figures/supplemental/FigS14_lysm_yield/tests.csv
-
-# Archived investigation notes stay local; distribute the concise archive index.
-deprecated/**/*.md
-!deprecated/README.md
 
 # Local development state and scoring sessions
 .claude/
@@ -64,11 +48,7 @@ deprecated/**/*.md
 supporting_info/LeafWebScore/ImageProjects/
 supporting_info/LeafWebScore/scores.csv
 
-# Keep the retired implementation archive local; retain its inventory.
-deprecated/**
-!deprecated/README.md
-!deprecated/move_manifest.csv
-!deprecated/retained_exceptions.json
+/deprecated/
 
 # The collection protocol is distributed as a single PDF.
 /supporting_info/collection_protocol/*

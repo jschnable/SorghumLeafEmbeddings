@@ -1,3 +1,2 @@
 # Source distributions contain the supported workflows and their tests.
-/deprecated export-ignore
 /.claude export-ignore

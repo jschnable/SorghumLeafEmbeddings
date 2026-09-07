@@ -1,6 +1,6 @@
 # Sorghum leaf imaging and embedding genetics
 
-Code, data and supporting resources for **Low-cost, scalable leaf imaging and image latent features enable quantitative genetic studies of disease response across environments**.
+Code, data and supporting resources for **Embeddings of standardized sorghum leaf images capture genetic variation in disease response missed by human scores**.
 
 ## Supporting information
 
