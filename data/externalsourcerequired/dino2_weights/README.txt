@@ -1,24 +1,17 @@
-Place optional local DINOv2 weights here after downloading them yourself.
-The paper companion repository does not redistribute DINOv2 weights.
+Place DINOv2 weights here after downloading them yourself.
 
 Default expected use:
   python scripts/extract_embeddings.py ... --backend dino2 --dino2-weights data/externalsourcerequired/dino2_weights
 
 If this directory contains a .pth checkpoint, the script loads
 dinov2_vitl14_reg with pretrained=False and applies that checkpoint
-with strict=True. Mismatched checkpoints fail instead of loading partially. If
-no .pth file is present, torch.hub downloads/caches the
+with strict=True. If no .pth file is present, torch.hub downloads/caches the
 official dinov2_vitl14_reg weights.
-
-Local .pth files must be backbone-only state dicts for dinov2_vitl14_reg. Full
-training checkpoints with classifier heads, wrapper modules, or a different
-DINOv2 architecture are expected to fail strict loading.
 
 Current cleaned-pipeline model:
   dinov2_vitl14_reg
 
-This is the large ViT-L/14 model with registers. It replaced earlier legacy
-exploration with the much smaller dinov2_vits14_reg model.
+This is the large ViT-L/14 model with registers.
 
 Download/source:
   Official repository: https://github.com/facebookresearch/dinov2
