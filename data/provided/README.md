@@ -12,6 +12,7 @@ This directory contains the supplied manuscript inputs, including the original p
 | `genotype_conversion_table.csv` | Genotype-name crosswalk, retained as requested. |
 | `population_structure/geno_pcs.eigenvec` | Original population PCs used by the manuscript embedding-correlation workflow; keep as a provided input. |
 | `locus_regions.json` | Coordinates, feature selections and threshold settings for regional reproduction. |
+| [variant_effects/sorghum_snpeff_calls.tsv.gz](variant_effects/README.md) | SnpEff variant-effect calls for candidate-gene interpretation. |
 | `examples/example_image_list.csv` and five JPEGs under `examples/images/` | The retained demonstration dataset. |
 
 ## Related analysis inputs and outputs
