@@ -18,3 +18,7 @@ Code, data and supporting resources for **Embeddings of standardized sorghum lea
 - [Shared figure inputs](data/figure_inputs/README.md): inputs used across candidate-gene panels.
 
 To reproduce the analyses, start with the [script instructions](scripts/README.md) and [input inventory](data/provided/README.md).
+
+## License
+
+Unless otherwise noted, original content in this repository is licensed under [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/). See [LICENSE](LICENSE) for the full terms. Third-party materials retain their respective licenses.
