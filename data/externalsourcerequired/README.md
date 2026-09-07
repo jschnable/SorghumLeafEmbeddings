@@ -1,18 +1,12 @@
-# `data/externalsourcerequired/`
+# External analysis inputs
 
-Large assets that are **not committed to GitHub** but are required to regenerate
-the files in `data/generatable/`. Obtain each from its external source and place
-it in the subfolder named below; the scripts default to these locations.
+Place downloaded inputs in these directories. See [script usage](../../scripts/README.md) for the analysis commands.
 
-- **Raw images** — the full per-environment leaf image set. Distributed
-  separately (too large for GitHub). Used by `scripts/extract_embeddings.py` to
-  produce embeddings.
-- `vcf/` — the sorghum marker **VCF or PLINK** files for GWAS. See
-  `vcf/README.txt`. Used by `scripts/run_gwas_panicle.py`.
-- `sam3_weights/` — the Hugging Face **SAM3** model files
-  (`facebook/sam3`). See `sam3_weights/README.txt`.
-- `dino2_weights/` — optional local **DINOv2** (`dinov2_vitl14_reg`) `.pth`
-  checkpoint; if absent, `torch.hub` downloads the official weights. See
-  `dino2_weights/README.txt`.
+- Raw images: per-environment image collections, with paths given in `data/provided/field_image_metadata.csv`.
+- [vcf/](vcf/README.txt): sorghum marker data for association analyses.
+- [variant_effects/](variant_effects/README.txt): SnpEff variant-effect calls for candidate-gene interpretation.
+- [expression/](expression/README.txt): gene-level TPM matrix and supplied metadata for the Nebraska 2021 leaf-expression cohort.
+- [sam3_weights/](sam3_weights/README.txt): the SAM3 checkpoint, processor and tokenizer files, identified by revision and checksums.
+- [dino2_weights/](dino2_weights/README.txt): DINOv2 checkpoint and download instructions.
 
-None of these should be committed to this repository.
+The regional gene-track workflow accepts the BTx623 v5.1 GFF3 using `--gff`.

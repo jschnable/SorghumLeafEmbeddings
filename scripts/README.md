@@ -193,7 +193,7 @@ The six locus configurations are in `data/provided/locus_regions.json`. Each wri
 
 ```bash
 python scripts/prepare_locus_data.py --locus chr4_lutein_peak \
-  --gff data/externalsourcerequired/annotations/Sbicolor_730_v5.1.gene.gff3
+  --gff /path/to/Sbicolor_730_v5.1.gene.gff3
 ```
 
 Repeat for each key in the JSON for a complete regional export. Outputs are `region_gwas.npz`, `gene_models.csv`, `gene_exons.csv`, `ld_track.csv` and `meta.json`. Use `--tracks-only` to prepare gene and LD tracks, and `--out-dir` to select an output directory. The configuration specifies effective-test thresholds and selected features. Phenotype/allele inputs for glossiness and LysM are in `data/figure_inputs/loci/`.

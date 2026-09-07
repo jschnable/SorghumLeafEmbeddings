@@ -14,14 +14,14 @@ This directory contains the supplied manuscript inputs, including the original p
 | `locus_regions.json` | Coordinates, feature selections and threshold settings for regional reproduction. |
 | `examples/example_image_list.csv` and five JPEGs under `examples/images/` | The retained demonstration dataset. |
 
-## Outputs that do not belong here
+## Related analysis inputs and outputs
 
 - `genotypes_allsites.csv` is generated under `data/generatable/` by intersecting the three fitted replication BLUE populations. The cohort is the intersection of the three fitted BLUE populations.
 - `hotspots/{sam3,dino2}_peaks_ge10_embeddings.csv` are generated from significant-marker tables under `data/generatable/` using the replication entry point.
 - Regional GWAS, gene and LD outputs remain under `data/generatable/loci/`.
-- LysM mass phenotypes are beside their figure in `figures/supplemental/FigS14_lysm_yield/`. Its renderer fits the six tests in memory; tests, audit files and metadata are not distributed with that figure.
-- RF model/predictor/target settings are defined directly in `scripts/figures/main/Fig2_embeddings/figure2.R`; the three separate lists are retired.
+- LysM mass phenotypes are beside their figure in `figures/supplemental/FigS14_lysm_yield/`. Its renderer fits the six tests in memory.
+- RF model/predictor/target settings are defined in `scripts/figures/main/Fig2_embeddings/figure2.R`.
 
-No retained script consumes plot-level flowering observations. The original table is preserved locally under ignored `data/externalsourcerequired/phenotypes/`; all current flowering adjustment uses the combined provided covariate file above.
+Flowering adjustment uses `gwas_covariates_leaf_area_flowering_time.csv`.
 
-Important generation commands are documented in `data/generatable/README.md`. The complete move history is in `deprecated/move_manifest.csv`.
+Generation commands are documented in [scripts/README.md](../../scripts/README.md).

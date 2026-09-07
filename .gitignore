@@ -11,6 +11,8 @@ data/externalsourcerequired/**/**
 !data/externalsourcerequired/**/
 !data/externalsourcerequired/README.md
 !data/externalsourcerequired/**/README.txt
+!data/externalsourcerequired/expression/sample_metadata.tsv
+!data/externalsourcerequired/sam3_weights/checksums.sha256
 
 # Large embedding / model arrays (not paper figure peak slices)
 *.npz
