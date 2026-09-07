@@ -1,10 +1,9 @@
 SG2021 expression inputs for manuscript candidate tests
 
 Files: gene_tpm.csv.gz and sample_metadata.tsv.
-These are the same files previously stored as gene_tpm (3).csv.gz and
-sample_metadata (3).tsv under figures/embedding_gwas_hotspots/ExpressionData.
-The cleanup move manifest records their SHA-256 hashes. They are external assets,
-not committed here. See the manuscript's Mangal et al. (2025) data citation and
-sample metadata for source provenance. Do not pool experiments: the supported
-analysis selects experiment == SG2021, then averages raw TPM within genotype.
-Obtain matching original source files and verify hashes before reproduction.
+
+
+
+Generated using published RNA-seq from Mangal et al. 2025 which reported RNA-seq from mature leaf tissue from many lines of the Sorghum Diversity panel. Samples were subset from the published set exclude a small number of samples where whole genome resequencing data was not available or did not match the genotype scored from RNA-seq reads. 
+
+Mangal H, Linders K, Turkus J, Shrestha N, Long B, Kuang X, Cebert E, Torres-Rodriguez JV, Schnable JC (2025) Genes and pathways determining flowering time variation in temperate adapted sorghum. The Plant Journal doi: 10.1111/tpj.70250
