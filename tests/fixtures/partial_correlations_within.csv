@@ -1,0 +1,2 @@
+hotspot,response_embedding,predictor_embedding,n,raw_spearman_r,raw_spearman_p,partial_r,partial_p,pct_of_raw_removed_by_covariates,response_R2_by_covariates,predictor_R2_by_covariates
+4:150:A:T,sam3:embedding_mean_0,sam3:embedding_std_1,18,-0.2549019607843137,0.307345280412546,-0.04057253126054722,0.8730056702535951,0.8408308389009301,0.40705378241683754,0.5282755387930176

@@ -1,0 +1,3 @@
+response_embedding,predictor_embedding,response_hotspots,predictor_hotspots,n,raw_spearman_r,raw_spearman_p,partial_r,partial_p,pct_of_raw_removed_by_covariates,response_R2_by_covariates,predictor_R2_by_covariates
+sam3:embedding_mean_0,sam3:embedding_std_2,4:150:A:T,9:150:G:C,17,0.24509803921568632,0.34304665309958526,0.28406006465913375,0.26917785063836197,-0.15896506380926545,0.4444650173378363,0.5861677637481728
+sam3:embedding_std_1,sam3:embedding_std_2,4:150:A:T,9:150:G:C,17,-0.20098039215686278,0.43923387618886767,-0.37114563464862976,0.14245694009053653,-0.8466758406907429,0.43949968374157244,0.5861677637481728

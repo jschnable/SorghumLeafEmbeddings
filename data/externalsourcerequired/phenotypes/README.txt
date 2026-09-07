@@ -1,0 +1,1 @@
+Original plot-level flowering observations are retained locally in flowering_time_plot_level.csv. No supported script consumes this table; active models read the compact combined GWAS covariate CSV in data/provided/. Obtain original observations with the external study data if needed for a new flowering model. Do not commit raw observation copies here.

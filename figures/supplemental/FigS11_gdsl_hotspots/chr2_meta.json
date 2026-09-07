@@ -1,0 +1,9 @@
+{
+  "Me": 4446367,
+  "bonferroni_threshold": 1.1245135635452496e-08,
+  "neglog10_threshold": 7.949035301867005,
+  "region_chrom": "2",
+  "region_lo": 52300000,
+  "region_hi": 52650000,
+  "peak_marker": 52490664
+}

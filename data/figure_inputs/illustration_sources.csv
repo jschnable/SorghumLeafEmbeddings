@@ -1,0 +1,20 @@
+figure,source_image,image_path
+Fig1_imaging,1064_LeafPhotoA_2025-09-08 12_56_11.568-05_00.jpg,data/externalsourcerequired/ne2025/device5/1064_LeafPhotoA_2025-09-08 12_56_11.568-05_00.jpg
+Fig1_imaging,1314_LeafPhotoA_2025-09-08 09_32_02.288-05_00.jpg,data/externalsourcerequired/ne2025/device4/1314_LeafPhotoA_2025-09-08 09_32_02.288-05_00.jpg
+Fig1_imaging,1338_LeafPhotoA_2025-09-08 10_07_02.814-05_00.jpg,data/externalsourcerequired/ne2025/device4/1338_LeafPhotoA_2025-09-08 10_07_02.814-05_00.jpg
+Fig1_imaging,1678_LeafPhotoA_2025-09-09 09_34_24.350-05_00.jpg,data/externalsourcerequired/ne2025/device8/1678_LeafPhotoA_2025-09-09 09_34_24.350-05_00.jpg
+Fig1_imaging,1688_LeafPhotoA_2025-09-09 09_15_58.077-05_00.jpg,data/externalsourcerequired/ne2025/device8/1688_LeafPhotoA_2025-09-09 09_15_58.077-05_00.jpg
+Fig1_imaging,2087_LeafPhotoA_2025-09-08 12_24_17.487-05_00.jpg,data/externalsourcerequired/ne2025/device5/2087_LeafPhotoA_2025-09-08 12_24_17.487-05_00.jpg
+Fig1_imaging,2685_LeafPhotoA_2025-09-09 10_50_55.356-05_00.jpg,data/externalsourcerequired/ne2025/device8/2685_LeafPhotoA_2025-09-09 10_50_55.356-05_00.jpg
+Fig3_hotspots,1577_LeafPhotoA_2025-09-09 09_52_09.527-05_00.jpg,data/externalsourcerequired/ne2025/device4/1577_LeafPhotoA_2025-09-09 09_52_09.527-05_00.jpg
+Fig3_hotspots,2193_LeafPhotoA_2025-09-08 17_12_46.303-05_00.jpg,data/externalsourcerequired/ne2025/device6/2193_LeafPhotoA_2025-09-08 17_12_46.303-05_00.jpg
+Fig3_hotspots,2471_LeafPhotoB_2025-09-08 11_47_57.632-05_00.jpg,data/externalsourcerequired/ne2025/device3/2471_LeafPhotoB_2025-09-08 11_47_57.632-05_00.jpg
+Fig3_hotspots,2613_LeafPhotoA_2025-09-09 11_09_15.958-05_00.jpg,data/externalsourcerequired/ne2025/device6/2613_LeafPhotoA_2025-09-09 11_09_15.958-05_00.jpg
+FigS16_midrib_yellowness,1840_LeafPhotoA_2025-09-09 09_49_58.136-05_00.jpg,data/externalsourcerequired/ne2025/device2/1840_LeafPhotoA_2025-09-09 09_49_58.136-05_00.jpg
+FigS16_midrib_yellowness,2587_LeafPhotoA_2025-09-09 10_33_28.831-05_00.jpg,data/externalsourcerequired/ne2025/device4/2587_LeafPhotoA_2025-09-09 10_33_28.831-05_00.jpg
+FigS18_human_rating_scale,10223_LeafPhotoA_2025-10-21 16_34_01.169-05_00.jpg,data/externalsourcerequired/aamu2025/block1/10223_LeafPhotoA_2025-10-21 16_34_01.169-05_00.jpg
+FigS18_human_rating_scale,10307_LeafPhotoA_2025-10-23 09_57_46.559-05_00.jpg,data/externalsourcerequired/aamu2025/block1/10307_LeafPhotoA_2025-10-23 09_57_46.559-05_00.jpg
+FigS18_human_rating_scale,10920_LeafPhotoA_2025-10-24 10_43_33.991-05_00.jpg,data/externalsourcerequired/aamu2025/block1/10920_LeafPhotoA_2025-10-24 10_43_33.991-05_00.jpg
+FigS18_human_rating_scale,250117_LeafPhotoA_2025-10-01 10_19_21.742-05_00.jpg,data/externalsourcerequired/fvsu2025/images/250117_LeafPhotoA_2025-10-01 10_19_21.742-05_00.jpg
+FigS18_human_rating_scale,250337_LeafPhotoA_2025-10-01 14_26_19.209-05_00.jpg,data/externalsourcerequired/fvsu2025/images/250337_LeafPhotoA_2025-10-01 14_26_19.209-05_00.jpg
+FigS1_human_vi_workflows,1064_LeafPhotoA_2025-09-08 12_56_11.568-05_00.jpg,data/externalsourcerequired/ne2025/device5/1064_LeafPhotoA_2025-09-08 12_56_11.568-05_00.jpg

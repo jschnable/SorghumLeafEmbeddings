@@ -1,0 +1,10 @@
+{
+  "marker": "Chr09:1,768,703 (G>T)",
+  "trait": "single_plant_panicle_dry_weight_g",
+  "env": "MI2020",
+  "n": 365,
+  "n_carrier": 12,
+  "effect": 16.718605365791653,
+  "se": 4.12244862771469,
+  "p": 0.00017191131478075242
+}

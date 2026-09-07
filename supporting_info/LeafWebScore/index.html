@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeafWebScore</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; overflow: hidden; }
+
+  /* Login Screen */
+  #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px; }
+  #login-screen h1 { font-size: 2.5rem; color: #4ecca3; }
+  #login-screen p { color: #999; font-size: 1.1rem; }
+  #login-screen input { padding: 12px 20px; font-size: 1.2rem; border: 2px solid #4ecca3; border-radius: 8px; background: #16213e; color: #e0e0e0; width: 300px; text-align: center; outline: none; }
+  #login-screen input:focus { border-color: #7effc9; }
+  #login-screen button { padding: 12px 40px; font-size: 1.2rem; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+  #login-screen button:hover { background: #7effc9; }
+
+  /* Main Screen — horizontal layout */
+  #main-screen { display: none; height: 100vh; flex-direction: row; }
+
+  /* Left: image area */
+  .image-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* Top bar */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #16213e; border-bottom: 1px solid #333; flex-shrink: 0; }
+  .top-bar select { padding: 6px 12px; font-size: 1rem; background: #1a1a2e; color: #e0e0e0; border: 1px solid #4ecca3; border-radius: 4px; cursor: pointer; }
+  .top-bar .user-info { color: #999; font-size: 0.9rem; }
+  .top-bar .image-name { color: #777; font-size: 0.85rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Image viewer */
+  .image-container { flex: 1; overflow: hidden; position: relative; background: #111; cursor: grab; display: flex; align-items: center; justify-content: center; }
+  .image-container.dragging { cursor: grabbing; }
+  .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center center; transition: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  .zoom-hint { position: absolute; bottom: 8px; left: 12px; color: #888; font-size: 0.8rem; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px; }
+
+  /* Done message */
+  .done-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+  .done-overlay.visible { display: flex; }
+  .done-overlay h2 { font-size: 2.5rem; color: #4ecca3; margin-bottom: 12px; }
+  .done-overlay p { color: #999; font-size: 1.2rem; }
+
+  /* Right: score panel */
+  .score-panel { width: 280px; flex-shrink: 0; background: #16213e; border-left: 1px solid #333; display: flex; flex-direction: column; padding: 16px; gap: 12px; overflow-y: auto; }
+
+  .panel-heading { font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 1px; }
+
+  .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .score-btn { height: 44px; font-size: 1.15rem; font-weight: bold; border: 2px solid #333; border-radius: 8px; background: #1a1a2e; color: #e0e0e0; cursor: pointer; transition: all 0.1s; }
+  .score-btn:hover { border-color: #4ecca3; background: #1f3a5f; }
+  .score-btn.active { border-color: #4ecca3; background: #4ecca3; color: #1a1a2e; }
+
+  .score-display { font-size: 2.5rem; font-weight: bold; color: #4ecca3; text-align: center; padding: 8px 0; }
+
+  /* Comment field */
+  .comment-input { width: 100%; padding: 8px 10px; font-size: 0.95rem; border: 1px solid #333; border-radius: 6px; background: #1a1a2e; color: #e0e0e0; resize: vertical; min-height: 50px; max-height: 120px; font-family: inherit; outline: none; }
+  .comment-input:focus { border-color: #4ecca3; }
+  .comment-input::placeholder { color: #555; }
+
+  /* Action buttons */
+  .action-row { display: flex; gap: 8px; }
+  .action-btn { flex: 1; padding: 10px 0; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; text-align: center; }
+  .submit-btn { background: #4ecca3; color: #1a1a2e; }
+  .submit-btn:hover { background: #7effc9; }
+  .submit-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+  .skip-btn { background: #e74c3c; color: #fff; }
+  .skip-btn:hover { background: #ff6b5b; }
+  .back-btn { background: #3498db; color: #fff; }
+  .back-btn:hover { background: #5dade2; }
+
+  /* Progress bar */
+  .progress-section { margin-top: auto; }
+  .progress-text { font-size: 0.85rem; color: #999; margin-bottom: 4px; text-align: center; }
+  .progress-track { height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #4ecca3; border-radius: 3px; transition: width 0.3s; }
+
+  /* Keyboard hint */
+  .kbd-hint { color: #555; font-size: 0.7rem; text-align: center; margin-top: 8px; line-height: 1.6; }
+  kbd { background: #333; padding: 1px 5px; border-radius: 3px; font-size: 0.65rem; color: #aaa; }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <h1>LeafWebScore</h1>
+  <p>Leaf Disease Severity Scoring</p>
+  <input type="text" id="username-input" placeholder="Enter your name" autofocus>
+  <button onclick="startScoring()">Start Scoring</button>
+</div>
+
+<!-- Main Scoring Screen -->
+<div id="main-screen">
+  <!-- Left: image -->
+  <div class="image-area">
+    <div class="top-bar">
+      <div>
+        <select id="project-select" onchange="switchProject()"></select>
+      </div>
+      <div class="image-name" id="image-name"></div>
+      <div class="user-info">Scoring as: <strong id="display-username"></strong></div>
+    </div>
+    <div class="image-container" id="image-container">
+      <img id="leaf-image" src="" alt="Leaf image">
+      <div class="zoom-hint">Scroll to zoom · Drag to pan · Double-click to reset</div>
+      <div class="done-overlay" id="done-overlay">
+        <h2>All Done!</h2>
+        <p>You've scored all images in this project.</p>
+        <p style="margin-top:12px; color:#4ecca3;">Select another project or close the tab.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: scoring controls -->
+  <div class="score-panel">
+    <div class="panel-heading">Score</div>
+    <div class="score-grid" id="score-grid"></div>
+
+    <div class="score-display" id="score-display">—</div>
+
+    <div class="panel-heading">Comment (optional)</div>
+    <textarea class="comment-input" id="comment-input" placeholder="Any notes about this image..." rows="2"></textarea>
+
+    <div class="action-row">
+      <button class="action-btn submit-btn" onclick="submitScore()" id="submit-btn" disabled>Submit</button>
+    </div>
+    <div class="action-row">
+      <button class="action-btn back-btn" onclick="goBack()" id="back-btn">&#8592; Back</button>
+      <button class="action-btn skip-btn" onclick="skipImage()">Skip</button>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-text" id="progress-text">Loading...</div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <div class="kbd-hint">
+      <kbd>1</kbd>–<kbd>5</kbd> score &nbsp; <kbd>.</kbd> toggle .5<br>
+      <kbd>Enter</kbd> submit &nbsp; <kbd>S</kbd> skip &nbsp; <kbd>B</kbd> back
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let username = "";
+let currentProject = "";
+let currentImage = "";
+let currentIndex = 0;
+let totalImages = 0;
+let selectedScore = null;
+let projects = {};
+let history = [];
+let submitting = false;  // guards against double-submit (Enter/click twice before next image loads)
+const SCORES = [];
+for (let i = 1; i <= 5; i++) { SCORES.push(i); SCORES.push(i + 0.5); }
+SCORES.pop(); // remove 5.5, end at 5.0
+
+function apiFetch(url, options = {}) {
+  return fetch(url, options);
+}
+
+function imageUrl(project, image) {
+  return `/images/${encodeURIComponent(project)}/${encodeURIComponent(image)}`;
+}
+
+// ── Login ──────────────────────────────────────────────────────────────────
+const usernameInput = document.getElementById("username-input");
+const savedName = localStorage.getItem("leafwebscore_username");
+if (savedName) usernameInput.value = savedName;
+
+usernameInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") startScoring();
+});
+
+async function startScoring() {
+  const input = document.getElementById("username-input").value.trim();
+  if (!input) return;
+  username = input;
+  localStorage.setItem("leafwebscore_username", username);
+
+  let data;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    alert("Could not connect to server. Is it still running?\n\n" + err.message);
+    return;
+  }
+  projects = data.projects;
+
+  if (Object.keys(projects).length === 0) {
+    alert("No projects found on server.");
+    return;
+  }
+
+  buildScoreButtons();
+  buildProjectDropdown();
+  document.getElementById("display-username").textContent = username;
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("main-screen").style.display = "flex";
+
+  currentProject = Object.keys(projects)[0];
+  document.getElementById("project-select").value = currentProject;
+  history = [];
+  loadNextImage();
+}
+
+function buildProjectDropdown() {
+  const sel = document.getElementById("project-select");
+  sel.innerHTML = "";
+  for (const [name, count] of Object.entries(projects)) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = `${name.toUpperCase()} (${count} images)`;
+    sel.appendChild(opt);
+  }
+}
+
+function buildScoreButtons() {
+  const grid = document.getElementById("score-grid");
+  grid.innerHTML = "";
+  for (const val of SCORES) {
+    const btn = document.createElement("button");
+    btn.className = "score-btn";
+    btn.textContent = val.toFixed(1);
+    btn.dataset.val = val;
+    btn.onclick = () => selectScore(val);
+    grid.appendChild(btn);
+  }
+}
+
+// ── Score selection ────────────────────────────────────────────────────────
+function selectScore(val) {
+  selectedScore = val;
+  document.querySelectorAll("#score-grid .score-btn").forEach(b => {
+    b.classList.toggle("active", parseFloat(b.dataset.val) === val);
+  });
+  updateScoreDisplay();
+}
+
+function updateScoreDisplay() {
+  const display = document.getElementById("score-display");
+  const btn = document.getElementById("submit-btn");
+  if (selectedScore === null) {
+    display.textContent = "—";
+    btn.disabled = true;
+  } else {
+    display.textContent = selectedScore.toFixed(1);
+    btn.disabled = false;
+  }
+}
+
+// ── Project switching ──────────────────────────────────────────────────────
+function switchProject() {
+  currentProject = document.getElementById("project-select").value;
+  history = [];
+  resetScore();
+  loadNextImage();
+}
+
+// ── Image loading ──────────────────────────────────────────────────────────
+async function loadNextImage() {
+  resetZoom();
+  let data;
+  try {
+    const resp = await apiFetch(`/api/next/${encodeURIComponent(currentProject)}/${encodeURIComponent(username)}`);
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    alert("Lost connection to server. Is it still running?\n\n" + err.message);
+    return;
+  }
+
+  if (data.done || !data.image) {
+    showDone();
+    return;
+  }
+
+  hideDone();
+  currentImage = data.image;
+  currentIndex = data.index;
+  totalImages = data.total;
+
+  document.getElementById("leaf-image").src = imageUrl(currentProject, currentImage);
+  document.getElementById("image-name").textContent = currentImage;
+  updateProgress();
+}
+
+async function loadImageAt(index) {
+  resetZoom();
+  let data;
+  try {
+    const resp = await apiFetch(`/api/image_at/${encodeURIComponent(currentProject)}/${encodeURIComponent(username)}/${index}`);
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    alert("Lost connection to server. Is it still running?\n\n" + err.message);
+    return;
+  }
+
+  if (data.error) return;
+
+  hideDone();
+  currentImage = data.image;
+  currentIndex = data.index;
+  totalImages = data.total;
+
+  document.getElementById("leaf-image").src = imageUrl(currentProject, currentImage);
+  document.getElementById("image-name").textContent = currentImage;
+  updateProgress();
+}
+
+async function updateProgress() {
+  try {
+    const resp = await apiFetch(`/api/progress/${encodeURIComponent(currentProject)}/${encodeURIComponent(username)}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+    document.getElementById("progress-text").textContent =
+      `Scored ${data.scored} of ${data.total} images (${pct}%)`;
+    document.getElementById("progress-fill").style.width = `${pct}%`;
+  } catch (err) {
+    // Progress update is non-critical; don't alert
+  }
+}
+
+function resetScore() {
+  selectedScore = null;
+  document.querySelectorAll("#score-grid .score-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("comment-input").value = "";
+  updateScoreDisplay();
+}
+
+function showDone() {
+  document.getElementById("done-overlay").classList.add("visible");
+  document.getElementById("submit-btn").disabled = true;
+}
+
+function hideDone() {
+  document.getElementById("done-overlay").classList.remove("visible");
+}
+
+// ── Submit / Skip / Back ───────────────────────────────────────────────────
+async function submitScore() {
+  if (submitting || selectedScore === null) return;
+  submitting = true;
+  const savedImage = currentImage;   // lock the target so a resubmit can't drift
+
+  const score = selectedScore.toFixed(1);
+  const comment = document.getElementById("comment-input").value.trim();
+  let data;
+  try {
+    const resp = await apiFetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project: currentProject,
+        image: savedImage,
+        username: username,
+        score: score,
+        comment: comment
+      })
+    });
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    submitting = false;
+    alert("Could not save score. Is the server still running?\n\n" + err.message);
+    return;
+  }
+  if (!data.ok) {
+    submitting = false;
+    alert("Error saving score: " + (data.error || "unknown"));
+    return;
+  }
+
+  history.push(currentIndex);
+  resetScore();
+  await loadNextImage();
+  submitting = false;
+}
+
+async function skipImage() {
+  if (submitting) return;
+  submitting = true;
+  const savedImage = currentImage;
+
+  const comment = document.getElementById("comment-input").value.trim();
+  let data;
+  try {
+    const resp = await apiFetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project: currentProject,
+        image: savedImage,
+        username: username,
+        score: "skip",
+        comment: comment
+      })
+    });
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+    data = await resp.json();
+  } catch (err) {
+    submitting = false;
+    alert("Could not save skip. Is the server still running?\n\n" + err.message);
+    return;
+  }
+  if (!data.ok) {
+    submitting = false;
+    alert("Error saving skip: " + (data.error || "unknown"));
+    return;
+  }
+
+  history.push(currentIndex);
+  resetScore();
+  await loadNextImage();
+  submitting = false;
+}
+
+function goBack() {
+  if (submitting || history.length === 0) return;
+  const prevIndex = history.pop();
+  resetScore();
+  loadImageAt(prevIndex);
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (document.getElementById("main-screen").style.display === "none") return;
+
+  const key = e.key;
+
+  if (!e.shiftKey && !e.ctrlKey && !e.metaKey && key >= "1" && key <= "5") {
+    e.preventDefault();
+    const n = parseInt(key);
+    if (selectedScore !== null && Math.floor(selectedScore) === n) return;
+    selectScore(n);
+    return;
+  }
+
+  if (key === "." && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    if (selectedScore === null) return;
+    const base = Math.floor(selectedScore);
+    const isHalf = (selectedScore % 1) !== 0;
+    const newVal = isHalf ? base : base + 0.5;
+    if (SCORES.includes(newVal)) selectScore(newVal);
+    return;
+  }
+
+  if (key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitScore();
+    return;
+  }
+
+  if ((key === "s" || key === "S") && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    e.preventDefault();
+    skipImage();
+    return;
+  }
+
+  if ((key === "b" || key === "B") && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    e.preventDefault();
+    goBack();
+    return;
+  }
+});
+
+// ── Zoom and Pan ──────────────────────────────────────────────────────────
+let scale = 1;
+let translateX = 0;
+let translateY = 0;
+let isDragging = false;
+let dragStartX, dragStartY;
+
+const container = document.getElementById("image-container");
+const img = document.getElementById("leaf-image");
+
+function applyTransform() {
+  img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+function resetZoom() {
+  scale = 1;
+  translateX = 0;
+  translateY = 0;
+  applyTransform();
+}
+
+container.addEventListener("wheel", e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.min(Math.max(scale * delta, 0.5), 10);
+  const rect = container.getBoundingClientRect();
+  const cx = e.clientX - rect.left - rect.width / 2;
+  const cy = e.clientY - rect.top - rect.height / 2;
+  const factor = newScale / scale;
+  translateX = cx - factor * (cx - translateX);
+  translateY = cy - factor * (cy - translateY);
+  scale = newScale;
+  applyTransform();
+}, { passive: false });
+
+container.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  isDragging = true;
+  dragStartX = e.clientX - translateX;
+  dragStartY = e.clientY - translateY;
+  container.classList.add("dragging");
+});
+
+document.addEventListener("mousemove", e => {
+  if (!isDragging) return;
+  translateX = e.clientX - dragStartX;
+  translateY = e.clientY - dragStartY;
+  applyTransform();
+});
+
+document.addEventListener("mouseup", () => {
+  isDragging = false;
+  container.classList.remove("dragging");
+});
+
+container.addEventListener("dblclick", () => {
+  resetZoom();
+});
+
+// Touch support
+let lastTouchDist = 0;
+container.addEventListener("touchstart", e => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    dragStartX = e.touches[0].clientX - translateX;
+    dragStartY = e.touches[0].clientY - translateY;
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    lastTouchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+}, { passive: false });
+
+container.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    translateX = e.touches[0].clientX - dragStartX;
+    translateY = e.touches[0].clientY - dragStartY;
+    applyTransform();
+  } else if (e.touches.length === 2) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const factor = dist / lastTouchDist;
+    scale = Math.min(Math.max(scale * factor, 0.5), 10);
+    lastTouchDist = dist;
+    applyTransform();
+  }
+}, { passive: false });
+
+container.addEventListener("touchend", () => {
+  isDragging = false;
+});
+
+// ── Beforeunload warning ──────────────────────────────────────────────────
+window.addEventListener("beforeunload", e => {
+  if (selectedScore !== null) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+</script>
+</body>
+</html>

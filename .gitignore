@@ -1,0 +1,126 @@
+# Generated analysis artifacts live in data/generatable/ and are not committed
+# (except the README documenting what each generatable file is).
+data/generatable/*
+!data/generatable/README.md
+
+# Large external-source assets (raw images, SAM3/DINOv2 weights, marker VCF/PLINK)
+# are obtained separately and must never be committed. Only the README files that
+# document where to get each asset are tracked.
+data/externalsourcerequired/**
+data/externalsourcerequired/**/**
+!data/externalsourcerequired/**/
+!data/externalsourcerequired/README.md
+!data/externalsourcerequired/**/README.txt
+
+# Large embedding / model arrays (not paper figure peak slices)
+*.npz
+!figures/**/*.npz
+__pycache__/
+*.py[cod]
+.~lock.*
+PEER_REVIEW.md
+.DS_Store
+.ipynb_checkpoints/
+
+
+# Figure intermediates (full-res transparent masks/crops, dual PDF exports)
+# Canonical figures: PNG at max 6.5in @ 300dpi; plus hand-edited SVG when present.
+figures/**/*_segmented.png
+figures/**/*_slice.png
+figures/supplemental/FigS5_exg_predictions/rf_exg_scatterplot.svg
+figures/**/*_from_code.png
+figures/**/*_0.png
+figures/**/*_1.png
+figures/main/Fig2_embeddings/rf_accuracy.*
+figures/main/Fig2_embeddings/sam3_cor.*
+figures/main/Fig3_hotspots/figure3_from_code.png
+figures/lysm_rlk_story/lysm_rlk_story_v1_deprecated.png
+
+# Archived generated files stay local; archiving must not add old model outputs to Git.
+deprecated/data/generatable/
+deprecated/**/__pycache__/
+deprecated/.pytest_cache/
+deprecated/**/*.log
+deprecated/**/*.pid
+deprecated/**/*.status
+deprecated/**/*.out
+deprecated/**/.Rhistory
+deprecated/**/*.npy
+
+# Reproducible population PCs and one-off input/test audits are local evidence.
+deprecated/**/geno_pcs.eigenvec
+**/input_audit.json
+**/test_metadata.json
+figures/supplemental/FigS14_lysm_yield/tests.csv
+
+# Archived investigation notes stay local; distribute the concise archive index.
+deprecated/**/*.md
+!deprecated/README.md
+
+# Local development state and scoring sessions
+.claude/
+.pytest_cache/
+.venv/
+supporting_info/LeafWebScore/ImageProjects/
+supporting_info/LeafWebScore/scores.csv
+
+# Keep the retired implementation archive local; retain its inventory.
+deprecated/**
+!deprecated/README.md
+!deprecated/move_manifest.csv
+!deprecated/retained_exceptions.json
+
+# The collection protocol is distributed as a single PDF.
+/supporting_info/collection_protocol/*
+!/supporting_info/collection_protocol/collection_protocol.pdf
+
+# Direct script outputs; retain manually edited figure assemblies and exports.
+/figures/main/Fig1_imaging/us_study_sites_map.png
+/figures/supplemental/FigS17_chr4_panicle_mass/chr4_69_panicle_wt.png
+/figures/supplemental/FigS14_lysm_yield/chr9_1_panicle_wt.png
+/figures/supplemental/FigS7_partial_correlations/partial_correlation_distributions.png
+/figures/supplemental/FigS7_partial_correlations/partial_correlation_distributions.svg
+/figures/supplemental/FigS15_feature_importance/feature_importance_distribution.png
+/figures/supplemental/FigS11_gdsl_hotspots/gdsl_hotspots.png
+/figures/supplemental/FigS11_gdsl_hotspots/gdsl_hotspots.svg
+/figures/supplemental/FigS9_disease_score_stability/hotspot_score_stability.png
+/figures/supplemental/FigS9_disease_score_stability/hotspot_score_stability.svg
+/figures/supplemental/FigS2_human_vi_correlation/human_vi_correlation.png
+/figures/supplemental/FigS12_cyp97b_jar1_hotspots/ja_hotspots.png
+/figures/supplemental/FigS12_cyp97b_jar1_hotspots/ja_hotspots.svg
+/figures/supplemental/FigS13_lysm_hotspot/lysm_hotspot.png
+/figures/supplemental/FigS6_repeatability/repeatability_vs_disease_cor.png
+/figures/supplemental/FigS4_dino2_predictions/dino2_scatter_scores.png
+/figures/supplemental/FigS3_exg_leaf_gallery/grid.png
+/figures/supplemental/FigS10_ugt_hotspot/ugt_hotspot.png
+/figures/main/Fig2_embeddings/rf_accuracy.png
+/figures/main/Fig2_embeddings/sam3_cor.png
+figures/**/Rplots.pdf
+
+# Full-resolution leaf sources are external; retain gallery-sized panels.
+/figures/supplemental/FigS3_exg_leaf_gallery/*.jpg
+/figures/supplemental/FigS5_exg_predictions/*.jpg
+
+# Local agent instructions are kept outside the repository.
+/AGENTS.md
+
+# Original illustration photographs and superseded Figure 3 assembly stay external.
+/figures/**/*_LeafPhoto*.jpg
+/figures/main/Fig3_hotspots/figure3_from_code.svg
+
+# Large figure inputs are retained as lossless gzip CSVs.
+/figures/main/Fig3_hotspots/dino2_hits_per_100kb.csv
+/figures/main/Fig3_hotspots/human_disease_scores.csv
+/figures/main/Fig3_hotspots/sam3_hits_per_100kb.csv
+/figures/supplemental/FigS11_gdsl_hotspots/chr2_region_gwas.csv
+/figures/supplemental/FigS11_gdsl_hotspots/chr4_region_gwas.csv
+/figures/supplemental/FigS12_cyp97b_jar1_hotspots/chr4_region_gwas.csv
+/figures/supplemental/FigS12_cyp97b_jar1_hotspots/chr9_region_gwas.csv
+/figures/supplemental/FigS13_lysm_hotspot/region_gwas.csv
+/figures/supplemental/FigS16_midrib_yellowness/bin_pergeno.csv
+/figures/supplemental/FigS2_human_vi_correlation/nebraska_human_exg_ratings.csv
+/figures/supplemental/FigS5_exg_predictions/dino2_embedding_exg_rf_image_predictions.csv
+/figures/supplemental/FigS5_exg_predictions/sam3_embedding_exg_rf_image_predictions.csv
+/figures/supplemental/FigS6_repeatability/dino2_heritability_Nebraska2025.csv
+/figures/supplemental/FigS6_repeatability/sam3_heritability_Nebraska2025.csv
+/figures/supplemental/FigS7_partial_correlations/hotspot_embedding_pair_partial_correlations.csv

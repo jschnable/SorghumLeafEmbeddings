@@ -1,0 +1,39 @@
+{
+  "phenotype_csv": "figures/supplemental/FigS13_lysm_hotspot/candidate_expression.csv",
+  "phenotype_column": "tpm",
+  "log2": false,
+  "genotype_column": "genotype",
+  "env_column": null,
+  "env": null,
+  "group_column": null,
+  "exclude_list": null,
+  "common_genotypes_list": null,
+  "marker_argument": "9:1768703:G:T",
+  "selected_marker": {
+    "MARKER": "9:1768703:G:T",
+    "CHROM": "9",
+    "POS": 1768703,
+    "SNP": "9:1768703:G:T",
+    "REF": "G",
+    "ALT": "T"
+  },
+  "genotype": "data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype_format": "vcf",
+  "n_groups": 1,
+  "n_tested": 1,
+  "n_pcs": 5,
+  "covariate_file": null,
+  "covariate_cols": null,
+  "cv_model": "5 PCs",
+  "model": "PANICLE_MLM_LOCO_MULTI, LOCO VanRaden kinship, genotype PCs (+ covariates if enabled) as CV, forced LRT refinement",
+  "lrt_refinement": true,
+  "effect_convention": "Genotypes are PANICLE ALT dosage coded 0/1/2; standardized_effect_alt_allele is the additive ALT-allele effect divided by phenotype SD.",
+  "min_samples": 30,
+  "min_homozygote_count": 3,
+  "elapsed_seconds": 40.379529423997155,
+  "package_versions": {
+    "panicle": "0.4.0",
+    "numpy": "1.26.4",
+    "pandas": "2.1.4+dfsg"
+  }
+}

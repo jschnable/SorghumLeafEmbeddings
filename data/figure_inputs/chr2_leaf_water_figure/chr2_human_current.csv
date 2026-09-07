@@ -1,0 +1,2 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+Nebraska2025,2:52490664:GGAGT:G,2,52490664,GGAGT,G,human_score_blue,891,891,841,2,48,2.2744538524103497,0.5018705010834917,0.1661202580550447,0.0383572350025048,1.569029182066573e-05,0.3310022360278329,0.6620044720556659,increases,tested,
