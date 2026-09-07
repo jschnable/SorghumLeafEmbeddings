@@ -1,8 +1,7 @@
 """Prepare the DINOv2 hotspot inventory and sample counts for retained PheWAS tests.
 
-Uses the sliding windows plotted in Figure 3 and their GWAS inputs, not the older
-non-overlapping-window hotspot file. Counts are from the saved paper PheWAS runs,
-not raw plant observations or newly fitted association models.
+Uses sliding windows and their GWAS inputs. Sample counts are from the saved
+paper PheWAS runs.
 """
 from pathlib import Path
 import pandas as pd

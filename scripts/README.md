@@ -173,7 +173,7 @@ Correlations need both models' Nebraska BLUEs/significant markers, human/ExG BLU
 
 ### Hotspot generation
 
-`--prepare-hotspots-only` regenerates both peak tables from the SAM3 and DINOv2 `significant_markers.csv` files. It uses fixed, non-overlapping 100-kb bins, counts distinct embedding traits, selects bins with at least 10 traits and merges qualifying bin starts at most 200 kb apart. Peak-bin ties use the smaller marker p-value, then position. The lead marker is the strongest association across the merged interval. SAM3 rows also report the maximum DINOv2 bin count over that interval. The tables contain interval bounds, feature counts, peak bins, lead positions and full-precision marker p-values. These discovery bins are distinct from the overlapping display windows in Figure 3.
+`--prepare-hotspots-only` regenerates both peak tables from the SAM3 and DINOv2 `significant_markers.csv` files. It uses fixed, non-overlapping 100-kb bins, counts distinct embedding traits, selects bins with at least 10 traits and merges qualifying bin starts at most 200 kb apart. Peak-bin ties use the smaller marker p-value, then position. The lead marker is the strongest association across the merged interval. SAM3 rows also report the maximum DINOv2 bin count over that interval. The tables contain interval bounds, feature counts, peak bins, lead positions and full-precision marker p-values.
 
 ### Common cohort
 

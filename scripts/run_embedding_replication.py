@@ -338,8 +338,7 @@ DEFAULT_OUT_DIR = REPO_ROOT / "data" / "generatable" / "all_hotspot_embedding_re
 def generate_hotspot_tables(sam3_path: Path, dino2_path: Path, out_dir: Path) -> None:
     """Fixed 100-kb bins; >=10 traits; merge qualifying bin starts <=200 kb apart.
 
-    These discovery intervals differ from the overlapping density windows drawn
-    in Figure 3. Peak-bin ties use the strongest marker p-value, then position.
+    Peak-bin ties use the strongest marker p-value, then position.
     """
     data = {}
     for model, path in [("sam3", sam3_path), ("dino2", dino2_path)]:
