@@ -1,0 +1,64 @@
+{
+  "winsor_order": "plot",
+  "winsor_quantiles": [
+    0.01,
+    0.99
+  ],
+  "logit_epsilon": 5e-05,
+  "mask_area_npz": "data/generatable/embeddings/dino2_all3_embeddings_2016crop_float32.npz",
+  "input_sha256": {
+    "data/provided/human_disease_scores.csv": "d918c0e1860a3f16abed4fc3aab8d09766fad504a87cb86f7e9a6347f390b71f",
+    "data/provided/exg_ratings.csv": "5879e7b875181ca320acea5323cafac8ee06a2a8ad9be60a3d60e9f0b99f9c9a",
+    "data/provided/field_image_metadata.csv": "26c5413610dc4a2f4923d09b1584eb7e920c8ab88a9da5120b89264bf728a40d",
+    "data/provided/image_ids_exclude.csv": "90046d015f8e1c856d54f1219f0212adc9087108c16a8017c9f423b44b57e84c",
+    "data/provided/gwas_covariates_leaf_area_flowering_time.csv": "ba92066c510ea0a1d5037452c7a46ad67db157a9ab80a74308880b6ae9376d19"
+  },
+  "traits": {
+    "human_score": {
+      "images": 5082,
+      "plot_observations": 1953,
+      "blue_genotypes": 954,
+      "fixed_effects": [
+        "genotype",
+        "mask_pixels_scaled"
+      ],
+      "random_effects": [
+        "row",
+        "column",
+        "block",
+        "device"
+      ]
+    },
+    "exg_raw": {
+      "images": 5083,
+      "plot_observations": 1953,
+      "blue_genotypes": 954,
+      "fixed_effects": [
+        "genotype",
+        "mask_pixels_scaled"
+      ],
+      "random_effects": [
+        "row",
+        "column",
+        "block",
+        "device"
+      ]
+    },
+    "exg_logit": {
+      "images": 5083,
+      "plot_observations": 1953,
+      "blue_genotypes": 954,
+      "fixed_effects": [
+        "genotype",
+        "mask_pixels_scaled"
+      ],
+      "random_effects": [
+        "row",
+        "column",
+        "block",
+        "device"
+      ]
+    }
+  },
+  "mask_metadata_sha256": "c7b39fc7b7f7d4345b7d6e02a6a8fd12e141ea35004b03d3b328cbac8975b4a1"
+}

@@ -25,6 +25,7 @@ Each directory below corresponds to one figure in the manuscript, numbered by fi
 | FigS16 | [supplemental/FigS16_midrib_yellowness](supplemental/FigS16_midrib_yellowness/) | `Rscript scripts/figures/supplemental/FigS16_midrib_yellowness/chr4_yellowness_bins.R` |
 | FigS17 | [supplemental/FigS17_chr4_panicle_mass](supplemental/FigS17_chr4_panicle_mass/) | `Rscript scripts/figures/supplemental/FigS17_chr4_panicle_mass/chr4_69_panicle_wt.R` |
 | FigS18 | [supplemental/FigS18_human_rating_scale](supplemental/FigS18_human_rating_scale/) | Retained edited SVG and raster export. |
+| FigS19 | [supplemental/FigS19_disease_gwas](supplemental/FigS19_disease_gwas/) | `python scripts/figures/supplemental/disease_gwas.py` |
 
 ## Edited assemblies
 

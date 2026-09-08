@@ -1,0 +1,56 @@
+{
+  "context": {
+    "genotype": "data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+    "genotype_format": "vcf",
+    "n_markers": 6422975,
+    "n_samples": 891,
+    "sample_sha256": "1406e0566ab31981c1bb8defd8d9718b6710b8e7d9cbe5cfe50473b28e0835aa"
+  },
+  "effective_tests": {
+    "Me": 4446367,
+    "total_snps": 6422975,
+    "dropped_monomorphic_total": 42,
+    "per_chromosome": {
+      "1": {
+        "Me": 559967,
+        "n_snps": 808239
+      },
+      "2": {
+        "Me": 449175,
+        "n_snps": 691217
+      },
+      "3": {
+        "Me": 496058,
+        "n_snps": 719525
+      },
+      "4": {
+        "Me": 504512,
+        "n_snps": 702690
+      },
+      "5": {
+        "Me": 527893,
+        "n_snps": 736564
+      },
+      "6": {
+        "Me": 323278,
+        "n_snps": 523635
+      },
+      "7": {
+        "Me": 339184,
+        "n_snps": 495974
+      },
+      "8": {
+        "Me": 419286,
+        "n_snps": 586747
+      },
+      "9": {
+        "Me": 383923,
+        "n_snps": 539793
+      },
+      "10": {
+        "Me": 443091,
+        "n_snps": 618549
+      }
+    }
+  }
+}

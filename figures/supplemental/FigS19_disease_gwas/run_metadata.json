@@ -1,0 +1,43 @@
+{
+  "blue_file": "data/generatable/disease_gwas/blues_Nebraska2025.csv",
+  "genotype": "/home/james/leaf_imaging/SorghumLeafEmbeddings/data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+  "genotype_format": "vcf",
+  "n_traits": 3,
+  "n_pcs": 5,
+  "covariate_file": "data/provided/gwas_covariates_leaf_area_flowering_time.csv",
+  "covariate_cols": [
+    "mask_pixels_blue",
+    "days_to_flower_blue"
+  ],
+  "cv_model": "5 PCs + 2 genotype-level covariates",
+  "lrt_refinement": true,
+  "lrt_solver": "GEMMA",
+  "write_full_results": true,
+  "write_plots": false,
+  "effective_tests_file": "data/generatable/gwas/cache/effective_tests_1406e0566ab3.json",
+  "loco_cache_file": "data/generatable/disease_gwas/loco_kinship.pkl",
+  "effective_tests_context": {
+    "genotype": "data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz",
+    "genotype_format": "vcf",
+    "n_markers": 6422975,
+    "n_samples": 891,
+    "sample_sha256": "1406e0566ab31981c1bb8defd8d9718b6710b8e7d9cbe5cfe50473b28e0835aa"
+  },
+  "timings_seconds": {
+    "load_vcf": 0.1364989410212729,
+    "load_phenotypes_covariates": 7.4959645539929625,
+    "align_samples": 0.0005413220205809921,
+    "effective_tests": 5.6240998674184084e-05,
+    "calculate_pcs_and_cv": 2.9195920230122283,
+    "load_or_compute_loco": 43.10519282001769,
+    "panicle_mlm_loco_multi": 101.80412583399448,
+    "write_outputs": 0.00660674599930644,
+    "total": 210.56212917302037
+  },
+  "package_versions": {
+    "panicle": "0.4.0",
+    "numpy": "1.26.4",
+    "pandas": "2.1.4+dfsg",
+    "matplotlib": "3.6.3"
+  }
+}

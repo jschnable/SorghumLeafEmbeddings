@@ -118,11 +118,31 @@ python scripts/calculate_blues.py --scores data/provided/human_disease_scores.cs
   --trait-regex '^human_score$' --image-col image_id --environment all \
   --out-dir data/generatable/blues/allsites_human_scores
 python scripts/calculate_blues.py --scores data/provided/exg_ratings.csv \
-  --trait-regex '^ExG_P20_disease_pct$' --image-col image_id --environment Nebraska2025 \
+  --trait-regex '^ExG_P20_disease_pct$' --image-col image_id --environment Nebraska2025 --logit-transform \
   --out-dir data/generatable/blues/nebraska_exg_logit
 ```
 
-Outputs include `blues_<environment>.csv`, `heritability_<requested_environment>.csv` and `variance_partitioning_<requested_environment>.csv`. Supply raw ExG observations; the BLUE script applies the transformation. The default averages images by plot. Use `--no-plot-averaging` to fit image-level observations and record that choice in the run directory.
+Outputs include `blues_<environment>.csv`, `heritability_<requested_environment>.csv` and `variance_partitioning_<requested_environment>.csv`. Supply raw ExG observations and pass `--logit-transform` to apply the transformation. The default averages images by plot. Use `--no-plot-averaging` to fit image-level observations and record that choice in the run directory.
+
+### Human-score and ExG GWAS comparison
+
+The six-panel supplement uses the same BLUE and GWAS model as the manuscript. This preparation step joins the original photograph's mask area from the DINOv2 metadata, applies recorded image exclusions, averages by plot and winsorizes plot means at 1%/99%. Logit ExG is transformed before averaging; raw ExG is the untransformed comparison. It records model terms, input hashes and image/plot/genotype counts.
+
+```bash
+python scripts/prepare_disease_gwas.py
+python scripts/run_gwas_panicle.py \
+  --blue-file data/generatable/disease_gwas/blues_Nebraska2025.csv \
+  --trait-regex '^(human_score|exg_raw|exg_logit)$' --drop-missing-samples \
+  --covariate-file data/provided/gwas_covariates_leaf_area_flowering_time.csv \
+  --covariate-cols mask_pixels_blue,days_to_flower_blue --n-pcs 5 --cpu 8 \
+  --lrt-solver GEMMA --write-full-results \
+  --effective-tests-file data/generatable/gwas/cache/effective_tests_1406e0566ab3.json \
+  --loco-cache-file data/generatable/disease_gwas/loco_kinship.pkl \
+  --out-dir data/generatable/disease_gwas/gwas
+python scripts/figures/supplemental/disease_gwas.py
+```
+
+The plotting script checks the effective-test count against the manuscript's 4,446,367, uses the exact threshold `0.05 / 4446367` (approximately 7.95 on the negative log scale), and plots all 6,422,975 markers per trait. The genotype/covariate-complete cohort is recorded in GWAS metadata. Recompute the local kinship cache if the installed PANICLE version changes its cache format.
 
 ## 3. Area/flowering covariates
 

@@ -1,0 +1,25 @@
+{
+  "effective_tests": 4446367,
+  "p_threshold": 1.1245135635452496e-08,
+  "minus_log10_threshold": 7.949035301867005,
+  "traits": {
+    "human_score": {
+      "markers": 6422975,
+      "min_p": 9.106128547028342e-08,
+      "significant_markers": 0,
+      "lambda_gc": 1.1248509018462456
+    },
+    "exg_raw": {
+      "markers": 6422975,
+      "min_p": 1.2756265398469413e-15,
+      "significant_markers": 236,
+      "lambda_gc": 1.2797642905848694
+    },
+    "exg_logit": {
+      "markers": 6422975,
+      "min_p": 2.505895541758205e-07,
+      "significant_markers": 0,
+      "lambda_gc": 1.0855915108579697
+    }
+  }
+}
