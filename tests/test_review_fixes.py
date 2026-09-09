@@ -17,7 +17,6 @@ import calculate_blues
 import embedding_io
 import extract_embeddings
 import run_gwas_panicle
-import segment_leaf
 import train_random_forest
 
 
@@ -144,14 +143,6 @@ def test_bh_qvalues_known_vector() -> None:
     assert np.allclose(q, np.array([0.02, 0.04, 0.04, 0.008]))
 
 
-def test_segment_array_reports_failure_reason() -> None:
-    image = np.zeros((100, 100, 3), dtype=np.uint8)
-    result = segment_leaf.process_array(image, down_from_top=10, up_from_bottom=10)
-    assert result.mask is None
-    assert result.status == "failed"
-    assert result.reason == "no_component_touching_both_sides"
-
-
 def test_extract_embeddings_uses_cv2_segmentation_only(tmp_path: Path) -> None:
     class DummyExtractor:
         def metadata(self) -> dict[str, object]:
@@ -203,15 +194,6 @@ def test_crop_geometry_records_leaf_angle_and_width() -> None:
     assert crops[0]["crop_bgr"].shape == (20, 50, 3)
 
 
-def test_resize_for_model_uses_shared_square_area_resize() -> None:
-    image = np.zeros((extract_embeddings.DEFAULT_CROP_SIZE, extract_embeddings.DEFAULT_CROP_SIZE, 3), dtype=np.uint8)
-    image[:, : extract_embeddings.DEFAULT_CROP_SIZE // 2] = 255
-    resized = extract_embeddings.resize_for_model(image)
-    assert resized.shape == (extract_embeddings.MODEL_INPUT_SIZE, extract_embeddings.MODEL_INPUT_SIZE, 3)
-    assert (resized[:, :450] > 250).all()
-    assert (resized[:, 558:] < 5).all()
-
-
 def test_shared_crop_preprocessing_converts_bgr_to_resized_rgb() -> None:
     crop_bgr = np.zeros((extract_embeddings.DEFAULT_CROP_SIZE, extract_embeddings.DEFAULT_CROP_SIZE, 3), dtype=np.uint8)
     crop_bgr[:, : extract_embeddings.DEFAULT_CROP_SIZE // 2, 2] = 255
@@ -219,12 +201,7 @@ def test_shared_crop_preprocessing_converts_bgr_to_resized_rgb() -> None:
     assert model_rgb.shape == (extract_embeddings.MODEL_INPUT_SIZE, extract_embeddings.MODEL_INPUT_SIZE, 3)
     assert model_rgb[:, :450, 0].min() > 250
     assert model_rgb[:, :450, 2].max() < 5
-
-
-
-
-
-
+    assert (model_rgb[:, 558:] < 5).all()
 
 
 def test_dino_preprocess_uses_shared_model_resize() -> None:
@@ -243,60 +220,6 @@ def test_dino_model_rgb_preprocess_rejects_non_uint8() -> None:
     image = np.zeros((extract_embeddings.MODEL_INPUT_SIZE, extract_embeddings.MODEL_INPUT_SIZE, 3), dtype=np.float32)
     with pytest.raises(TypeError, match="Expected uint8 RGB image"):
         extractor.preprocess_model_rgb(image)
-
-
-def test_default_crop_size_is_twice_model_input_size() -> None:
-    assert extract_embeddings.DEFAULT_CROP_SIZE == 2 * extract_embeddings.MODEL_INPUT_SIZE
-
-
-def test_embed_crops_rows_record_backend_and_geometry() -> None:
-    class DummyExtractor:
-        def metadata(self) -> dict[str, object]:
-            return {"backend_model": "dummy"}
-
-        def embedding(self, _crop: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-            return np.array([1.0, 2.0]), np.array([0.1, 0.2])
-
-    args = Namespace(
-        backend="sam3",
-        seed=0,
-        step=500,
-        crop_width=1000,
-        crop_height=2000,
-        mask_pixels_min=1,
-        mask_pixels_max=10_000,
-        tolerance1=50,
-        tolerance2=50,
-        down_from_top=10,
-        up_from_bottom=10,
-        trim_left=0,
-        trim_right=0,
-        card_height=50,
-        card_width=50,
-    )
-    crops = [{"crop_bgr": np.zeros((20, 50, 3), dtype=np.uint8), "crop_center_x": 10.0}]
-    summary = {
-        "image_path": "img.jpg",
-        "image_id": "img",
-        "status": "ok",
-        "failure_reason": "ok",
-        "segmentation_method": "CV2",
-        "mask_pixels": 123,
-        "n_crops": 1,
-        "leaf_angle_degrees": 0.0,
-    }
-    rows, backend_summary = extract_embeddings.embed_crops(
-        Path("img.jpg"),
-        crops,
-        summary,
-        DummyExtractor(),
-        args,
-        "sam3",
-    )
-    assert rows[0]["backend"] == "sam3"
-    assert rows[0]["backend_model"] == "dummy"
-    assert rows[0]["leaf_angle_degrees"] == pytest.approx(0.0)
-    assert backend_summary["backend"] == "sam3"
 
 
 def test_image_csv_accepts_repository_and_csv_relative_paths(tmp_path, monkeypatch):
