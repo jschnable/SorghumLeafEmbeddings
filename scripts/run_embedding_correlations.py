@@ -95,6 +95,20 @@ def hotspots_by_embedding(hotspots):
             result[embedding].add(hotspot)
     return dict(result)
 
+def write_empty_correlations(scope: str) -> None:
+    columns = ["response_embedding", "predictor_embedding"]
+    if scope == "within":
+        columns.insert(0, "hotspot")
+    else:
+        columns += ["response_hotspots", "predictor_hotspots"]
+    columns += ["n", "raw_spearman_r", "raw_spearman_p", "partial_r", "partial_p",
+                "pct_of_raw_removed_by_covariates", "response_R2_by_covariates",
+                "predictor_R2_by_covariates"]
+    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(columns=columns).to_csv(OUT_CSV, index=False)
+    log(f"No {scope}-hotspot pairs to test; wrote empty result to {OUT_CSV}")
+
+
 def run_within() -> None:
     hotspots = pd.read_csv(HOTSPOT_MASTER)
     log(f"Loaded {len(hotspots)} hotspots from {HOTSPOT_MASTER}")
@@ -104,6 +118,10 @@ def run_within() -> None:
         log(f"  {peak_marker}: {len(embeddings)} associated embeddings")
     n_pairs_total = sum(len(e) * (len(e) - 1) // 2 for e in embeddings_by_hotspot.values())
     log(f"{n_pairs_total} (hotspot, pair) rows to test across all hotspots")
+
+    if n_pairs_total == 0:
+        write_empty_correlations("within")
+        return
 
     peak_marker_dose = load_peak_marker_dosages(hotspots["peak_marker"].tolist())
 
@@ -186,6 +204,10 @@ def run_cross() -> None:
         if hotspots_of[a].isdisjoint(hotspots_of[b])
     ]
     log(f"{len(cross_pairs)} cross-hotspot pairs to test (disjoint hotspot sets)")
+
+    if not cross_pairs:
+        write_empty_correlations("cross")
+        return
 
     traits_by_source: dict[str, set[str]] = defaultdict(set)
     for embedding_id in all_ids:

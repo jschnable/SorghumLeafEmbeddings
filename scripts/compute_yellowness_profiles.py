@@ -32,6 +32,8 @@ NPROC = 20
 def leaf_profile(image_path, nbin=NBIN, min_area=MIN_AREA):
     from skimage import color
     res = process_single_result(image_path)
+    if res.reason == "failed_read":
+        raise OSError(f"Could not read image: {image_path}")
     if res.mask is None:
         return None
     m = res.mask.astype(bool)
@@ -75,8 +77,8 @@ def _worker(row):
     genotype, path = row
     try:
         prof = leaf_profile(path)
-    except Exception:
-        prof = None
+    except Exception as exc:
+        raise RuntimeError(f"Yellowness processing failed for {path}: {exc}") from exc
     if prof is None:
         return None
     return (genotype,) + tuple(prof)
@@ -101,6 +103,9 @@ def main():
     log(f"candidate leaves: {len(ne)}  ({ne.genotype.nunique()} genotypes)")
 
     rows = list(zip(ne.genotype, ne.image_path))
+    missing = [str(path) for _, path in rows if not Path(path).is_file()]
+    if missing:
+        raise SystemExit(f"{len(missing)} input images not found; first: {missing[0]}")
     t0 = time.time()
     out_rows = []
     with Pool(NPROC) as pool:
@@ -110,6 +115,9 @@ def main():
             if (i + 1) % 250 == 0:
                 log(f"{i + 1}/{len(rows)} processed, {len(out_rows)} ok, {time.time() - t0:.0f}s elapsed")
     log(f"done: {len(out_rows)}/{len(rows)} leaves segmented ok, {time.time() - t0:.0f}s")
+
+    if not out_rows:
+        raise SystemExit("No usable leaf profiles were produced; output was not replaced")
 
     bcols = [f"b{i}" for i in range(NBIN)]
     prof = pd.DataFrame(out_rows, columns=["genotype"] + bcols)

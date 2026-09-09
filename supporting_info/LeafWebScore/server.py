@@ -71,7 +71,7 @@ def discover_projects():
         for f in entry.rglob("*"):
             if not f.is_file():
                 continue
-            if f.name.startswith(".") or f.name.startswith("__"):
+            if any(part.startswith((".", "__")) for part in f.relative_to(entry).parts):
                 continue
             if f.suffix.lower() in IMAGE_EXTENSIONS:
                 # Store path relative to the project dir so we can serve it

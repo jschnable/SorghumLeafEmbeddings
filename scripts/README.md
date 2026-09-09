@@ -187,7 +187,7 @@ python scripts/run_embedding_replication.py --reuse-blues
 python scripts/run_embedding_correlations.py --scope both
 ```
 
-Replication needs the SAM3 NPZ, Nebraska significant markers, generated hotspot intervals, common-genotype list, covariates and external VCF. It selects each hotspot–embedding pair's own best discovery marker, prepares its selected BLUEs and writes `hotspot_embedding_pairs.csv`, per-hotspot tests and replication reports (`replication_summary.csv`, `replication_by_hotspot.csv`, `replication_counts.json`) inside `all_hotspot_embedding_replication/`. `--reuse-blues` reuses the selected BLUEs if present and compatible; otherwise it prepares them.
+Replication needs the SAM3 NPZ, Nebraska significant markers, generated hotspot intervals, common-genotype list, covariates and external VCF. It selects each hotspot–embedding pair's own best discovery marker, prepares its selected BLUEs and writes `hotspot_embedding_pairs.csv`, per-hotspot tests and replication reports (`replication_summary.csv`, `replication_by_hotspot.csv`, `replication_counts.json`) inside `all_hotspot_embedding_replication/`. `--reuse-blues` reuses nonempty, valid selected BLUE tables only when saved provenance matches the embedding input, metadata, exclusions, fitting code and software versions, and the output checksums still match. Otherwise it refits them. Older outputs without provenance are refitted once.
 
 Correlations need both models' Nebraska BLUEs/significant markers, human/ExG BLUEs, `figures/main/Fig3_hotspots/hotspot_master.csv`, and the provided PCs at `data/provided/population_structure/geno_pcs.eigenvec`. Within-hotspot tests also need marker dosages from the VCF. Use the CLI overrides when comparing an alternative run. Preserve the different complete-case and marker-adjustment rules in the within/cross workflows.
 
@@ -222,12 +222,12 @@ Repeat for each key in the JSON for a complete regional export. Outputs are `reg
 
 ```bash
 python scripts/run_phwas_panicle.py 4:69421678:C:A \
-  --out-dir data/generatable/phwas/chr4_69421678
+  --out-dir data/generatable/phwas
 python scripts/compute_yellowness_profiles.py \
   --out data/generatable/yellowness/bin_pergeno.csv
 ```
 
-PheWAS accepts `--trait-zip`, `--genotype`, repeated `--trait`/`--env` filters and covariate options. Use a distinct directory for each marker/model specification. The yellowness workflow uses raw Nebraska images, field metadata and exclusions to calculate genotype-level transverse CIELAB b* profiles.
+PheWAS accepts `--trait-zip`, `--genotype`, repeated `--trait`/`--env` filters and covariate options. The retained manuscript runs write marker-named result files directly into `data/generatable/phwas/`, where the manuscript table collector reads them. Keep alternative model runs in separate directories outside that collection; rerunning a marker in the same directory replaces its results. The yellowness workflow uses raw Nebraska images, field metadata and exclusions to calculate genotype-level transverse CIELAB b* profiles. Missing/unreadable images and processing exceptions stop the run with the affected path. If no usable profiles remain, the run also stops; these failures preserve any existing output.
 
 ## 9. Export the selected figure inputs
 
