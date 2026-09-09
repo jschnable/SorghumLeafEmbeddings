@@ -2,20 +2,22 @@
 """Build the UGT locus and raw-TPM expression supplement from saved inputs.
 
 Uses the saved raw-TPM expression significance table (zeros retained).
-Run: python scripts/make_ugt_hotspot_figure.py
+Run: python figures/supplemental/FigS10_ugt_hotspot/make_ugt_hotspot_figure.py
 """
 from pathlib import Path
 import json
+import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
-from figure_data_io import load_region_gwas
 from panicle.data.loaders import load_genotype_file
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts"))
+from figure_data_io import load_region_gwas
 D = ROOT / "data/generatable/loci/chr4_ugt"
 E = ROOT / "figures/supplemental/FigS10_ugt_hotspot"
 meta = json.loads((D / "meta.json").read_text())

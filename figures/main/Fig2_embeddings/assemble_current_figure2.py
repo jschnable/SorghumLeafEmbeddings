@@ -4,7 +4,7 @@ import base64
 import subprocess
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 DIR = ROOT/'figures/main/Fig2_embeddings'
 SVG = 'http://www.w3.org/2000/svg'
 XLINK = 'http://www.w3.org/1999/xlink'

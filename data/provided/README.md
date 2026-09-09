@@ -21,7 +21,7 @@ This directory contains the supplied manuscript inputs, including the original p
 - `hotspots/{sam3,dino2}_peaks_ge10_embeddings.csv` are generated from significant-marker tables under `data/generatable/` using the replication entry point.
 - Regional GWAS, gene and LD outputs remain under `data/generatable/loci/`.
 - LysM mass phenotypes are beside their figure in `figures/supplemental/FigS14_lysm_yield/`. Its renderer fits the six tests in memory.
-- RF model/predictor/target settings are defined in `scripts/figures/main/Fig2_embeddings/figure2.R`.
+- RF model/predictor/target settings are defined in `figures/main/Fig2_embeddings/figure2.R`.
 
 Flowering adjustment uses `gwas_covariates_leaf_area_flowering_time.csv`.
 

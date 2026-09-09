@@ -10,6 +10,6 @@ The phenotype preparation reuses `calculate_blues.py` with genotype fixed, raw m
 
 ## Plot style provenance
 
-Typography, mathematical p-value labels, axis lines and dashed threshold follow this manuscript's `scripts/figures/supplemental/FigS13_lysm_hotspot/lysm_hotspot.R`. Genome-wide chromosome labels and alternating black/darkgrey colors follow the local mycobiome manuscript script `/home/james/software/sorghum-maize-mycobiome/src/figures/figure7/ColletGWASCombinedManualRelAbundanceManhattan.R`. Chromosome offsets use the marker coordinates in this VCF, instead of borrowing chromosome lengths from another genome assembly. QQ plotting positions follow this repository's `run_gwas_panicle.py`: `(rank - 0.5) / N`.
+Typography, mathematical p-value labels, axis lines and dashed threshold follow this manuscript's `figures/supplemental/FigS13_lysm_hotspot/lysm_hotspot.R`. Genome-wide chromosome labels and alternating black/darkgrey colors follow the local mycobiome manuscript script `/home/james/software/sorghum-maize-mycobiome/src/figures/figure7/ColletGWASCombinedManualRelAbundanceManhattan.R`. Chromosome offsets use the marker coordinates in this VCF, instead of borrowing chromosome lengths from another genome assembly. QQ plotting positions follow this repository's `run_gwas_panicle.py`: `(rank - 0.5) / N`.
 
-The final PNG is 1950 pixels wide (6.5 inches at 300 dpi). The PDF retains vector text and rasterized points. Render with `python scripts/figures/supplemental/disease_gwas.py` from the repository root.
+The final PNG is 1950 pixels wide (6.5 inches at 300 dpi). The PDF retains vector text and rasterized points. Render with `python figures/supplemental/FigS19_disease_gwas/disease_gwas.py` from the repository root.

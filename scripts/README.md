@@ -60,13 +60,13 @@ After generating the analysis inputs, export the selected figure tables and rend
 
 ```bash
 Rscript scripts/prepare_figure_data.R
-Rscript scripts/figures/main/Fig3_hotspots/figure3.R
-python scripts/make_ugt_hotspot_figure.py
+Rscript figures/main/Fig3_hotspots/figure3.R
+python figures/supplemental/FigS10_ugt_hotspot/make_ugt_hotspot_figure.py
 ```
 
 Figure generators read the plotting inputs under `figures/`. The LysM mass renderer fits its six environment tests in memory through the general PheWAS implementation. Its phenotype CSV resides beside the figure.
 
-Run `scripts/assemble_current_figure2.py` after rendering the Figure 2 statistical panels to assemble them into the existing SVG and export the PNG. For leaf illustrations:
+Run `figures/main/Fig2_embeddings/assemble_current_figure2.py` after rendering the Figure 2 statistical panels to assemble them into the existing SVG and export the PNG. For leaf illustrations:
 
 ```bash
 python scripts/prepare_illustrations.py path/to/leaf.jpg --mode crops --out-dir data/generatable/illustrations
@@ -139,7 +139,7 @@ python scripts/run_gwas_panicle.py \
   --effective-tests-file data/generatable/gwas/cache/effective_tests_1406e0566ab3.json \
   --loco-cache-file data/generatable/disease_gwas/loco_kinship.pkl \
   --out-dir data/generatable/disease_gwas/gwas
-python scripts/figures/supplemental/disease_gwas.py
+python figures/supplemental/FigS19_disease_gwas/disease_gwas.py
 ```
 
 The plotting script checks the effective-test count against the manuscript's 4,446,367, uses the exact threshold `0.05 / 4446367` (approximately 7.95 on the negative log scale), and plots all 6,422,975 markers per trait. The genotype/covariate-complete cohort is recorded in GWAS metadata. Recompute the local kinship cache if the installed PANICLE version changes its cache format.
@@ -235,7 +235,7 @@ PheWAS accepts `--trait-zip`, `--genotype`, repeated `--trait`/`--env` filters a
 Rscript scripts/prepare_figure_data.R
 ```
 
-This exports selected datasets into `figures/`. Regional source files come from `data/generatable/loci/`. Candidate significance tables are in `data/figure_inputs/`. Render individual figures with the scripts under `scripts/figures/` and the UGT/Figure 2 assembly entry points in the Figures section above.
+This exports selected datasets into `figures/`. Regional source files come from `data/generatable/loci/`. Candidate significance tables are in `data/figure_inputs/`. Render individual figures with the scripts under `figures/` and the UGT/Figure 2 assembly entry points in the Figures section above.
 
 The exporter reads the output paths used in these recipes, including `blues/nebraska_exg_logit/` and the within-hotspot correlation table. Generate those inputs first. It stops if an input copy fails, and refreshes the selected figure tables on each run. Candidate phenotype/significance inputs supplied under `data/figure_inputs/` are read by their respective renderers.
 

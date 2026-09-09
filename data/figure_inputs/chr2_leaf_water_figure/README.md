@@ -14,7 +14,7 @@ and matches the expression-panel genotype calls to the same PANICLE loader used
 by the association model. Large source data and analysis outputs remain outside
 version control.
 
-Render `scripts/figures/supplemental/FigS11_gdsl_hotspots/gdsl_hotspots.R` from the repository root. Panel g uses
+Render `figures/supplemental/FigS11_gdsl_hotspots/gdsl_hotspots.R` from the repository root. Panel g uses
 raw water percentages, with one point per genotype and equal-weight averaging
 of environment-specific water fractions for the pooled phenotype. Displayed
 groups are homozygotes; model tests retain the one heterozygote. Report model

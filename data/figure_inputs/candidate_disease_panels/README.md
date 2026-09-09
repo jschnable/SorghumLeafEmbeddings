@@ -10,6 +10,6 @@ supplemental figures. Genotypes use PANICLE's marker loading/imputation. Tests
 include heterozygotes; plots display homozygotes, and their counts are checked
 against the test results before export. All disease tests use nominal p-values.
 
-Render the JA and LysM R scripts under `scripts/figures/supplemental/` from the repository root. Expression panels retain their separate SG2021 raw-TPM inputs and
+Render the JA and LysM R scripts under `figures/supplemental/` from the repository root. Expression panels retain their separate SG2021 raw-TPM inputs and
 PCs/LOCO-only models. Legacy disease significance files in those figure
 directories are not used by these renderers.
