@@ -422,4 +422,4 @@ p_water <- ggplot(water_data, aes(allele, 100 * water_fraction, fill = allele)) 
 
 gdsl_hotspots <- plot_grid(plot_grid(left_col, right_col, ncol = 2), p_water,
                            ncol = 1, rel_heights = c(5.65, 1.85), labels = c('', 'g'), label_size = 11)
-ggsave('gdsl_hotspots.png', plot = gdsl_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 7.5)
+ggsave('gdsl_hotspots.svg', plot = gdsl_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 7.5)

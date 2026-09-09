@@ -61,7 +61,7 @@ dino2_plot <- ggplot(dino2_feature_cor, aes(human_score_spearman_rho, broad_sens
   scale_y_continuous(name = 'Repeatability', 
                      limits = c(0, 0.8),
                      expand = c(0, 0)) + 
-  labs(title = 'DINO2') + 
+  labs(title = 'DINOv2') + 
   theme_use
 dino2_plot
 

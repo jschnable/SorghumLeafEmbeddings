@@ -50,10 +50,10 @@ dino2_distribution <- ggplot(dino2_feature_importances, aes(mean_feature_importa
   scale_x_continuous(name = 'Mean Feature Importance', 
                      expand = c(0, 0), 
                      limits = c(0, 0.0273)) + 
-  scale_y_continuous(name = 'Frequency (DINO2 Embeddings)', 
+  scale_y_continuous(name = 'Frequency (DINOv2 Embeddings)', 
                      expand = c(0, 0), 
                      limits = c(0, 200)) + 
-  labs(title = 'DINO2') + 
+  labs(title = 'DINOv2') + 
   theme_use
 dino2_distribution
 
