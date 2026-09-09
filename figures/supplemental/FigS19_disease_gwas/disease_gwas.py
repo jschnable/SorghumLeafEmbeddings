@@ -22,15 +22,25 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2
 
-ROOT = Path(__file__).resolve().parents[3]
+FIGURE_DIR = Path(__file__).resolve().parent
 TRAITS = [('human_score', 'Human disease scores'), ('exg_raw', 'Raw ExG'), ('exg_logit', 'Logit ExG')]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--gwas-dir', type=Path, default=ROOT/'data/generatable/disease_gwas/gwas')
-    ap.add_argument('--out-dir', type=Path, default=ROOT/'figures/supplemental/FigS19_disease_gwas')
+    ap.add_argument('--gwas-dir', type=Path, default=None, help='Directory containing effective_tests.json and traits/*_marker_pvalues.csv; full marker results are too large to bundle with this figure')
+    ap.add_argument('--out-dir', type=Path, default=FIGURE_DIR)
     args = ap.parse_args()
+    if args.gwas_dir is None:
+        args.gwas_dir = next((p / 'data/generatable/disease_gwas/gwas' for p in FIGURE_DIR.parents
+                              if (p / 'data/generatable/disease_gwas/gwas/traits').is_dir()), None)
+    if args.gwas_dir is None:
+        ap.error('Supply --gwas-dir with the full disease-GWAS results. This figure plots all 6,422,975 markers per trait; see README.md beside this script.')
+    required = [args.gwas_dir / 'effective_tests.json',
+                *(args.gwas_dir / 'traits' / f'{trait}_marker_pvalues.csv' for trait, _ in TRAITS)]
+    missing = [str(p) for p in required if not p.is_file()]
+    if missing:
+        ap.error('Missing GWAS inputs: ' + ', '.join(missing))
     args.out_dir.mkdir(parents=True, exist_ok=True)
     meta = json.loads((args.gwas_dir/'effective_tests.json').read_text())
     effective = meta['effective_tests']['Me']

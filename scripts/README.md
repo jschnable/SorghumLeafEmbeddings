@@ -28,7 +28,7 @@ Install the R packages used by the workflows:
 ```r
 install.packages(c("tidyverse", "reticulate", "jsonlite", "lme4", "paletteer",
                    "cowplot", "ggrastr", "vcfR", "ggtext", "glue", "maps",
-                   "patchwork", "BiocManager"))
+                   "patchwork", "mapproj", "svglite", "BiocManager"))
 BiocManager::install("VariantAnnotation", ask = FALSE, update = FALSE)
 ```
 
@@ -64,9 +64,9 @@ Rscript figures/main/Fig3_hotspots/figure3.R
 python figures/supplemental/FigS10_ugt_hotspot/make_ugt_hotspot_figure.py
 ```
 
-Figure generators read the plotting inputs under `figures/`. The LysM mass renderer fits its six environment tests in memory through the general PheWAS implementation. Its phenotype CSV resides beside the figure.
+Figure generators read the plotting inputs under `figures/`. The LysM mass renderer reads six saved environment tests prepared through the general PheWAS implementation. Its phenotype CSV and saved test results reside beside the figure.
 
-Run `figures/main/Fig2_embeddings/assemble_current_figure2.py` after rendering the Figure 2 statistical panels to assemble them into the existing SVG and export the PNG. For leaf illustrations:
+Run `figures/main/Fig2_embeddings/assemble_current_figure2.py` to render the current three-panel Figure 2 SVG and export its PNG. For leaf illustrations:
 
 ```bash
 python scripts/prepare_illustrations.py path/to/leaf.jpg --mode crops --out-dir data/generatable/illustrations
@@ -237,10 +237,19 @@ Rscript scripts/prepare_figure_data.R
 
 This exports selected datasets into `figures/`. Regional source files come from `data/generatable/loci/`. Candidate significance tables are in `data/figure_inputs/`. Render individual figures with the scripts under `figures/` and the UGT/Figure 2 assembly entry points in the Figures section above.
 
-The exporter reads the output paths used in these recipes, including `blues/nebraska_exg_logit/` and the within-hotspot correlation table. Generate those inputs first. It stops if an input copy fails, and refreshes the selected figure tables on each run. Candidate phenotype/significance inputs supplied under `data/figure_inputs/` are read by their respective renderers.
+The exporter reads the output paths used in these recipes, including `blues/nebraska_exg_logit/` and the within-hotspot correlation table. Generate those inputs first. It stops if an input copy fails, and refreshes the selected figure tables on each run. Selected candidate phenotype/significance inputs under `data/figure_inputs/` are copied into their figure directories for rendering.
 
 ## LysM mass figure tests
 
-The phenotype CSV is `figures/supplemental/FigS14_lysm_yield/phenotypes.csv`. Run its R figure script from the repository root. The script uses `reticulate` to call the general PheWAS model code, fitting all six environment tests in memory before plotting: homozygotes only, raw mass, five PCs, LOCO kinship, area/flowering covariates and LRT refinement with a 0.0005 screening threshold. It verifies allele labels and eligible sample counts against the VCF.
+The phenotype CSV and six saved tests are in `figures/supplemental/FigS14_lysm_yield/`.
+The R renderer uses those local files. Regenerate the tests with:
 
-Set `RETICULATE_PYTHON` to the Python environment containing PANICLE; the R dependencies include `tidyverse`, `paletteer`, `cowplot` and `reticulate`. Optional `LEAF_GENOTYPE_VCF` and `LEAF_CPU` environment variables select the external VCF and CPU count.
+```bash
+python scripts/prepare_lysm_yield_tests.py --cpu 4
+```
+
+This uses the general PheWAS model: homozygotes only, raw mass, five PCs, LOCO
+kinship, area/flowering covariates and LRT refinement with a 0.0005 screening
+threshold. It verifies allele labels and eligible sample counts against the VCF.
+`--genotype` selects another installed VCF and `--out` selects the test-table path.
+PANICLE and the external VCF are required for this analysis step only.

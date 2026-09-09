@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS13_lysm_hotspot"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Supplemental figure: LysM receptor-like kinase (Sobic.009G019100, Chr09 1.70-1.85 Mb)
 # leaf-image disease hotspot. Same panel style/significance-test conventions as
 # figures/supplemental/FigS12_cyp97b_jar1_hotspots/ja_hotspots.R, applied to this single locus.
@@ -23,7 +18,7 @@ setwd(file.path(.repo_root, "figures/supplemental/FigS13_lysm_hotspot"))
 # Panels C/D use frozen candidate-panel tables and the same current
 # model / Nebraska2025 BLUE source as ja_hotspots.R's disease panels.
 #
-# Locus/expression inputs are prepared by scripts/subset_figure_data.R.
+# Locus/expression inputs are prepared by scripts/prepare_figure_data.R.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
@@ -172,7 +167,7 @@ meta <- fromJSON('meta.json')
 meta$region_lo <- 1700000
 
 # lead-marker allele per genotype (0/2 dose -> G/T; box_data.csv already drops hets/missing,
-# same convention scripts/subset_figure_data.R uses when building lead_marker_genotypes.csv
+# same convention scripts/prepare_figure_data.R uses when building lead_marker_genotypes.csv
 # for ja_hotspots/gdsl_hotspots from the VCF directly)
 lead_marker_genotypes <- box %>%
   transmute(genotype, !!MARKER_COL := case_when(peak_dose == 0 ~ 'G', peak_dose == 2 ~ 'T', TRUE ~ NA_character_))
@@ -196,7 +191,7 @@ p_B <- plot_candidate_expression(expr_df, MARKER_COL, CAND, ALLELE_COLORS, tpm_p
 
 ## ---- panel C: lead marker -> human disease score BLUE, Nebraska2025 --------
 
-disease_inputs <- '../../../data/figure_inputs/candidate_disease_panels'
+disease_inputs <- 'disease_inputs'
 disease_genotypes <- read_csv(file.path(disease_inputs, 'genotypes.csv'), show_col_types = FALSE) %>%
   transmute(genotype, !!MARKER_COL := case_when(.data[[MARKER_COL]] == '0/0' ~ 'G',
                                               .data[[MARKER_COL]] == '1/1' ~ 'T',

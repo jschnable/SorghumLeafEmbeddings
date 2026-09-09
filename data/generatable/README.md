@@ -19,3 +19,5 @@ These datasets are produced by the analysis workflows. See [scripts/README.md](.
 | `loci/<locus>/` | `prepare_locus_data.py` | Regional GWAS NPZ, gene tracks, LD and threshold metadata. |
 | `phwas/<marker>/` | `run_phwas_panicle.py` | General external-trait/environment association screen. |
 | `yellowness/bin_pergeno.csv` | `compute_yellowness_profiles.py` | Per-genotype transverse leaf-colour profiles. |
+
+Dedicated plotting exports are stored with each figure. `scripts/prepare_correlation_figure_inputs.R` exports the within-/cross-hotspot correlation summaries; full pairwise results remain here.

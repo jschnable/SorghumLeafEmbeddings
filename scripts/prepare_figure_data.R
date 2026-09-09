@@ -258,13 +258,18 @@ convert_region_gwas <- function(npz_path, csv_path) {
   z <- np$load(npz_path, allow_pickle = TRUE)
   traits <- as.character(z$f[['traits']])
   trait_idx <- as.integer(z$f[['trait_idx']]) + 1L
-  tibble(trait = traits[trait_idx],
-        POS = as.integer(z$f[['POS']]),
-        p_value = as.numeric(z$f[['p_value']])) %>%
-    write_csv(csv_path)
+  table <- tibble(trait = traits[trait_idx],
+                  POS = as.integer(z$f[['POS']]),
+                  p_value = as.numeric(z$f[['p_value']]))
+  if (endsWith(csv_path, '.rds')) {
+    table$trait <- factor(table$trait)
+    saveRDS(as.data.frame(table), csv_path, compress = 'xz')
+  } else {
+    write_csv(table, csv_path)
+  }
 }
-convert_region_gwas('data/generatable/loci/chr4_cyp97b/region_gwas.npz', file.path(ja_dir, 'chr4_region_gwas.csv.gz'))
-convert_region_gwas('data/generatable/loci/chr9_jar1/region_gwas.npz', file.path(ja_dir, 'chr9_region_gwas.csv.gz'))
+convert_region_gwas('data/generatable/loci/chr4_cyp97b/region_gwas.npz', file.path(ja_dir, 'chr4_region_gwas.rds'))
+convert_region_gwas('data/generatable/loci/chr9_jar1/region_gwas.npz', file.path(ja_dir, 'chr9_region_gwas.rds'))
 
 for(f in c('ld_track.csv', 'gene_models.csv', 'gene_exons.csv', 'meta.json'))
 {
@@ -334,8 +339,8 @@ gdsl_dir <- 'figures/supplemental/FigS11_gdsl_hotspots'
 # directory (see figures/supplemental/FigS16_midrib_yellowness/chr4_yellowness_bins.R for why).
 chr4_yellowness_dir <- 'figures/supplemental/FigS16_midrib_yellowness'
 
-convert_region_gwas('data/generatable/loci/chr2_gdsl/region_gwas.npz', file.path(gdsl_dir, 'chr2_region_gwas.csv.gz'))
-convert_region_gwas('data/generatable/loci/chr4_gdsl/region_gwas.npz', file.path(gdsl_dir, 'chr4_region_gwas.csv.gz'))
+convert_region_gwas('data/generatable/loci/chr2_gdsl/region_gwas.npz', file.path(gdsl_dir, 'chr2_region_gwas.rds'))
+convert_region_gwas('data/generatable/loci/chr4_gdsl/region_gwas.npz', file.path(gdsl_dir, 'chr4_region_gwas.rds'))
 
 for(f in c('ld_track.csv', 'gene_models.csv', 'gene_exons.csv', 'meta.json'))
 {
@@ -505,8 +510,8 @@ pd.DataFrame({'genotype': list(ids), 'lead_dose': dosage}).loc[
 ].to_csv(ugt_dir / 'lead_marker_dosages.csv', index=False)
 )")
 
-# Panicle figures read their supplied phenotype tables. The LysM mass renderer
-# fits the six environment-specific association tests during figure generation.
+# Panicle renderers read local phenotype and saved test tables. Regenerate the
+# six LysM mass tests with scripts/prepare_lysm_yield_tests.py.
 
 # ---- figures/supplemental/FigS9_disease_score_stability ----
 # stability of alt allele effect on human disease scores across environments
@@ -531,7 +536,7 @@ copy_input('data/generatable/blues/allsites_human_scores/blues_Georgia2025.csv',
 copy_input('data/generatable/genotypes_allsites.csv', 'figures/supplemental/FigS9_disease_score_stability')
 
 # ---- embedding partial-correlation supplement ----
-copy_input('data/generatable/hotspot_embedding_pair_partial_correlations.csv',
-           'figures/supplemental/FigS7_partial_correlations/hotspot_embedding_pair_partial_correlations.csv.gz')
-copy_input('figures/main/Fig3_hotspots/hotspot_master.csv',
-           'figures/supplemental/FigS7_partial_correlations/hotspot_master.csv')
+source('scripts/prepare_correlation_figure_inputs.R')
+
+# Each renderer consumes dedicated local tables.
+source("scripts/prepare_local_figure_inputs.R")
