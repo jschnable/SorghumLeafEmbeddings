@@ -6,36 +6,27 @@ Run: python figures/supplemental/FigS10_ugt_hotspot/make_ugt_hotspot_figure.py
 """
 from pathlib import Path
 import json
-import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
-from panicle.data.loaders import load_genotype_file
 
-ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "scripts"))
-from figure_data_io import load_region_gwas
-D = ROOT / "data/generatable/loci/chr4_ugt"
-E = ROOT / "figures/supplemental/FigS10_ugt_hotspot"
-meta = json.loads((D / "meta.json").read_text())
+E = Path(__file__).resolve().parent
+meta = json.loads((E / "meta.json").read_text())
 test = pd.read_csv(E / "ugt_expression_significance.csv").iloc[0]
 test_meta = json.loads((E / "ugt_expression_significance.metadata.json").read_text())
 assert not test_meta["log2"], "Regenerate the raw-TPM test before plotting."
-gwas = load_region_gwas(D)
-genes = pd.read_csv(D / "gene_models.csv")
-exons = pd.read_csv(D / "gene_exons.csv")
-ld = pd.read_csv(D / "ld_track.csv")
+gwas = pd.read_csv(E / "region_gwas.csv.gz")
+genes = pd.read_csv(E / "gene_models.csv")
+exons = pd.read_csv(E / "gene_exons.csv")
+ld = pd.read_csv(E / "ld_track.csv")
 expr = pd.read_csv(E / "expression.csv")
 expr["genotype"] = expr.genotype.str.replace(" ", "", regex=False)
-# Use precisely the same PANICLE dosage loading/imputation as the association test.
-geno, ids, marker_map = load_genotype_file(test_meta["genotype"], file_format="vcf", precompute_alleles=False)
-marker_frame = marker_map.to_dataframe()
-marker_index = np.flatnonzero((marker_frame.CHROM.astype(str) == "4") & (marker_frame.POS == 60556616))[0]
-dosage = geno.subset_markers(np.array([marker_index])).to_numpy()[:, 0].astype(float)
-expr = expr.groupby("genotype", as_index=False).mean().merge(pd.DataFrame({"genotype": list(ids), "lead_dose": dosage}), on="genotype")
+# Frozen lead-marker dosages use the same PANICLE loading/imputation as the test.
+dosage = pd.read_csv(E / "lead_marker_dosages.csv")
+expr = expr.groupby("genotype", as_index=False).mean().merge(dosage, on="genotype", validate="one_to_one")
 gene = "Sobic.004G230800"
 groups = [expr.loc[expr.lead_dose == dose, gene].dropna().to_numpy() for dose in [0, 2]]
 assert len(groups[0]) == test.n_ref_homozygote and len(groups[1]) == test.n_alt_homozygote

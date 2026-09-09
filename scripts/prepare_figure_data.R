@@ -464,6 +464,11 @@ read_csv('data/generatable/blues/nebraska_exg_logit/blues_Nebraska2025.csv', sho
 # total_plot_dry_weight_g (per-genotype mean of per-plot totals; source
 # data/externalsourcerequired/sorghum_trait_data_v2.2.zip, per_location_traits/MI2021.tsv).
 ugt_dir <- 'figures/supplemental/FigS10_ugt_hotspot'
+convert_region_gwas('data/generatable/loci/chr4_ugt/region_gwas.npz', file.path(ugt_dir, 'region_gwas.csv.gz'))
+for(f in c('ld_track.csv', 'gene_models.csv', 'gene_exons.csv', 'meta.json'))
+{
+  copy_input(file.path('data/generatable/loci/chr4_ugt', f), file.path(ugt_dir, f), overwrite = TRUE)
+}
 
 ugt_expr <- tpm %>%
   dplyr::select(c(gene_id, starts_with('SG2021'))) %>%
@@ -475,6 +480,30 @@ ugt_expr <- tpm %>%
   summarise(tpm = mean(tpm), .groups = 'drop') %>%
   pivot_wider(id_cols = genotype, values_from = tpm, names_from = gene_id)
 write_csv(ugt_expr, file.path(ugt_dir, 'expression.csv'))
+
+# Freeze only this marker's dosages for the expression cohort. PANICLE is an
+# analysis-time dependency; the standalone renderer reads the resulting CSV.
+py_run_string(r"(
+from pathlib import Path
+import numpy as np
+import pandas as pd
+from panicle.data.loaders import load_genotype_file
+
+ugt_dir = Path('figures/supplemental/FigS10_ugt_hotspot')
+geno, ids, marker_map = load_genotype_file(
+    'data/externalsourcerequired/vcf/sorghum_925genotypes_filtered_v3.vcf.gz',
+    file_format='vcf', precompute_alleles=False)
+markers = marker_map.to_dataframe()
+selected = np.flatnonzero(
+    (markers.CHROM.astype(str) == '4') & (markers.POS == 60556616)
+    & (markers.REF == 'TC') & (markers.ALT == 'T'))
+assert len(selected) == 1, 'Expected exactly one 4:60556616:TC:T marker'
+dosage = geno.subset_markers(selected).to_numpy()[:, 0].astype(float)
+cohort = pd.read_csv(ugt_dir / 'expression.csv').genotype.str.replace(' ', '', regex=False)
+pd.DataFrame({'genotype': list(ids), 'lead_dose': dosage}).loc[
+    lambda frame: frame.genotype.isin(cohort)
+].to_csv(ugt_dir / 'lead_marker_dosages.csv', index=False)
+)")
 
 # Panicle figures read their supplied phenotype tables. The LysM mass renderer
 # fits the six environment-specific association tests during figure generation.
