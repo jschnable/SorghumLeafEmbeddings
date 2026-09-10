@@ -1,0 +1,3 @@
+group,marker,chrom,pos,ref,alt,phenotype_column,n_observations,n_marker_nonmissing,n_ref_homozygote,n_heterozygote,n_alt_homozygote,phenotype_mean,phenotype_sd,effect_alt_allele,se,p_value,standardized_effect_alt_allele,standardized_alt_homozygote_vs_ref,alt_effect_direction,status,skip_reason
+Nebraska2025,4:4724594:G:C,4,4724594,G,C,human_score_blue,891,891,844,3,44,2.2744538524103497,0.5018705010834917,0.1520032502825432,0.036311916198322,2.8964201991918525e-5,0.3028734503310762,0.6057469006621524,increases,tested,NA
+Nebraska2025,9:62301540:T:A,9,62301540,T,A,human_score_blue,891,891,839,2,50,2.2744538524103497,0.5018705010834917,0.1672890686821335,0.0385442170192047,1.5777533668562586e-5,0.3333311448291381,0.6666622896582763,increases,tested,NA

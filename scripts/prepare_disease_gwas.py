@@ -23,6 +23,11 @@ def main():
     parser.add_argument('--area-npz', type=Path, default=ROOT/'data/generatable/embeddings/dino2_all3_embeddings_2016crop_float32.npz')
     parser.add_argument('--winsor-order', choices=['plot', 'image'], default='plot')
     a = parser.parse_args()
+    a.area_npz = a.area_npz.expanduser().resolve()
+    try:
+        area_source = str(a.area_npz.relative_to(ROOT))
+    except ValueError:
+        area_source = str(a.area_npz)
     a.out_dir.mkdir(parents=True, exist_ok=True)
     with np.load(a.area_npz, allow_pickle=False) as z:
         meta = json.loads(z['metadata_json'].item())
@@ -33,7 +38,7 @@ def main():
         raise ValueError('Conflicting mask areas among crops from the same image')
     inputs = [ROOT/'data/provided/human_disease_scores.csv', ROOT/'data/provided/exg_ratings.csv']
     audit = {'winsor_order': a.winsor_order, 'winsor_quantiles': [0.01, 0.99],
-             'logit_epsilon': 5e-5, 'mask_metadata_sha256': hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest(), 'mask_area_npz': str(a.area_npz.relative_to(ROOT)),
+             'logit_epsilon': 5e-5, 'mask_metadata_sha256': hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest(), 'mask_area_npz': area_source,
              'input_sha256': {}, 'traits': {}}
     for p in [*inputs, ROOT/'data/provided/field_image_metadata.csv', ROOT/'data/provided/image_ids_exclude.csv', ROOT/'data/provided/gwas_covariates_leaf_area_flowering_time.csv']:
         audit['input_sha256'][str(p.relative_to(ROOT))] = hashlib.sha256(p.read_bytes()).hexdigest()

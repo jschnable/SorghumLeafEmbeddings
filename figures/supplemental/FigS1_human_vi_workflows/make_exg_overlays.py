@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate an ExG heatmap and a disease-mask overlay for a single leaf image.
 
-Segments the input image with the exact CV2 pipeline used by
+The bundled RGBA image contains the frozen leaf mask. For raw photographs,
+segmentation uses the exact CV2 pipeline used by
 ``scripts/extract_embeddings.py`` (``segment_leaf.process_array`` plus its
 ``valid_mask`` pixel-count check) -- there is no SAM3/DINO2 embedding backend
 involved and no fallback to one.
@@ -21,11 +22,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "extract_embeddings.py").is_file())
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-
-import segment_leaf  # noqa: E402
-from extract_embeddings import valid_mask  # noqa: E402
+FIGURE_DIR = Path(__file__).resolve().parent
 
 # Mirrors the segmentation defaults in scripts/extract_embeddings.py's parse_args().
 SEGMENTATION_DEFAULTS = dict(
@@ -66,7 +63,7 @@ def calculate_exg(image_rgb: np.ndarray) -> np.ndarray:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("image", type=Path, help="Path to a single leaf image.")
+    parser.add_argument("image", nargs="?", type=Path, default=FIGURE_DIR / "leaf.png", help="RGBA leaf image; defaults to the bundled leaf.png. Raw photographs require the full analysis repository.")
     parser.add_argument(
         "--exg-p20-threshold",
         type=float,
@@ -93,14 +90,24 @@ def main() -> None:
     output_dir = args.output_dir or image_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    image_bgr = cv2.imread(str(image_path))
+    loaded = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
+    image_bgr = loaded[:, :, :3] if loaded is not None else None
     if image_bgr is None:
         raise SystemExit(f"ERROR: could not read {image_path}")
 
-    seg_result = segment_leaf.process_array(image_bgr, image_label=str(image_path), **SEGMENTATION_DEFAULTS)
-    if not valid_mask(seg_result.mask, args.mask_pixels_min, args.mask_pixels_max):
-        raise SystemExit(f"ERROR: segmentation failed for {image_path}: {seg_result.reason}")
-    mask = seg_result.mask  # uint8, 1 where leaf, 0 elsewhere
+    if loaded.shape[2] == 4:
+        mask = (loaded[:, :, 3] > 0).astype(np.uint8)
+    else:
+        repo_root = next((p for p in FIGURE_DIR.parents if (p / "scripts/segment_leaf.py").is_file()), None)
+        if repo_root is None:
+            raise SystemExit("Raw-photo segmentation requires the full repository; use the bundled RGBA leaf.png for standalone rendering.")
+        sys.path.insert(0, str(repo_root / "scripts"))
+        import segment_leaf
+        from extract_embeddings import valid_mask
+        seg_result = segment_leaf.process_array(image_bgr, image_label=str(image_path), **SEGMENTATION_DEFAULTS)
+        if not valid_mask(seg_result.mask, args.mask_pixels_min, args.mask_pixels_max):
+            raise SystemExit(f"ERROR: segmentation failed for {image_path}: {seg_result.reason}")
+        mask = seg_result.mask
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     cv2.imwrite(str(output_dir / f"{image_path.stem}_segmented.png"), image_bgr * mask[:, :, None])

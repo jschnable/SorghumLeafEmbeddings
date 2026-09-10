@@ -43,9 +43,9 @@ SCORING
 -------
 1. Enter your name and click "Start Scoring".
 2. Select a project from the dropdown at the top.
-3. For each image, click a score button (1.0 to 7.0) then click Submit.
+3. For each image, click a score button (1.0 to 5.0 in half-point increments) then click Submit.
    - Or use keyboard shortcuts for speed:
-       1-7     Select score (e.g. press 4 for 4.0)
+       1-5     Select score (e.g. press 4 for 4.0)
        .       Toggle the .5 (e.g. 4.0 becomes 4.5)
        Enter   Submit the score
        S       Skip the image (for blurry/unreadable images)

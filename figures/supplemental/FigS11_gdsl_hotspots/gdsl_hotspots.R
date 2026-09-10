@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS11_gdsl_hotspots"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Supplemental figure: two GDSL-esterase/lipase leaf-embedding hotspots.
 # Left  = chr2:52.3-52.7 Mb, cuticle-wax candidate GDSL/WDL1 Sobic.002G164900. Panel 4 here
 # is a boxplot of leaf glossiness (specular fraction) by lead-marker allele, plus a human
@@ -17,7 +12,7 @@ setwd(file.path(.repo_root, "figures/supplemental/FigS11_gdsl_hotspots"))
 # environments (NE, NE-C, AL, GA) -- the same across-environment format panel A's disease
 # chart used before this update. The leaf-yellowness (b*) by-bin line plot that used to sit
 # here now lives in its own script/figure: figures/supplemental/FigS16_midrib_yellowness/chr4_yellowness_bins.R.
-# All inputs are pre-subset into this directory by scripts/subset_figure_data.R.
+# All inputs are pre-subset into this directory by scripts/prepare_figure_data.R.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
@@ -264,7 +259,7 @@ load_marker_pvals <- function(path)
 {
   # Falls back to NULL (-> plotAssociationStability()'s own on-the-fly Wilcoxon test) when
   # the precomputed per-environment LRT significance file hasn't been generated yet; see the
-  # NOTE in scripts/subset_figure_data.R for the command that produces it.
+  # NOTE in scripts/prepare_figure_data.R for the command that produces it.
   if(!file.exists(path)) return(NULL)
   read_csv(path, show_col_types = FALSE) %>%
     mutate(environment = recode(group, Nebraska2025 = 'NE', `Nebraska2025-Common` = 'NE-C',
@@ -277,7 +272,7 @@ load_marker_pvals <- function(path)
 
 build_top_panels <- function(prefix, chrom_label, candidate_id, candidate_label, highlight_color)
 {
-  gwas <- read_csv(str_c(prefix, '_region_gwas.csv.gz'), show_col_types = FALSE)
+  gwas <- readRDS(str_c(prefix, '_region_gwas.rds')) %>% mutate(trait = as.character(trait))
   ld <- read_csv(str_c(prefix, '_ld_track.csv'), show_col_types = FALSE)
   genes <- read_csv(str_c(prefix, '_gene_models.csv'), show_col_types = FALSE)
   exons <- read_csv(str_c(prefix, '_gene_exons.csv'), show_col_types = FALSE)
@@ -306,8 +301,8 @@ gloss_pval <- if (file.exists('chr2_gloss_significance.csv')) read_csv('chr2_glo
 p_gloss <- plot_gloss_boxplot('chr2_gloss.csv', lead_marker_cols$chr2, lead_marker_genotypes, '', chr2_colors,
                               allele_labels = c('GGAGT', 'G'), pval = gloss_pval)
 
-genotypes_common <- read_csv('../../main/Fig3_hotspots/genotypes_common.csv', show_col_types = FALSE)
-human_scores_raw <- read_csv('../FigS12_cyp97b_jar1_hotspots/human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
+genotypes_common <- read_csv('genotypes_common.csv', show_col_types = FALSE)
+human_scores_raw <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
   rename(human_score = human_score_blue) %>% mutate(environment = 'Nebraska2025')
 nec_scores <- filter(human_scores_raw, environment == 'Nebraska2025' & (genotype %in% genotypes_common$genotype)) %>%
   mutate(environment = 'Nebraska2025-Common')
@@ -315,14 +310,14 @@ human_scores <- bind_rows(human_scores_raw, nec_scores) %>%
   mutate(environment = factor(environment,
                               levels = c('Nebraska2025', 'Nebraska2025-Common', 'Alabama2025', 'Georgia2025'),
                               labels = c('NE', 'NE-C', 'AL', 'GA'))) %>%
-  left_join(read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/disease_genotypes.csv', show_col_types = FALSE), join_by(genotype), relationship = 'many-to-one')
+  left_join(read_csv('disease_genotypes.csv', show_col_types = FALSE), join_by(genotype), relationship = 'many-to-one')
 
 # NE only (Nebraska2025), per the bottom-row disease panel now being scoped to a single
 # environment -- drops the NE-C common-genotype subset and the AL/GA sites that the
 # multi-environment version of this panel (still used for the chr4 column below) shows.
 human_scores_marker <- human_scores %>%
   filter(!is.na(.data[[lead_marker_cols$chr2]]) & environment == 'NE')
-chr2_marker_pvals <- load_marker_pvals('../../../data/figure_inputs/chr2_leaf_water_figure/chr2_human_current.csv')
+chr2_marker_pvals <- load_marker_pvals('chr2_human_current.csv')
 # plotAssociationStability() captures `marker` via base substitute()/{{ }}, which only works
 # for a bare/backtick symbol known at write time; rlang::inject() + sym() lets us pass in the
 # runtime-determined marker column name (e.g. "2:52490664:GGAGT:G") in its place.
@@ -351,7 +346,7 @@ row4_chr2 <- plot_grid(p_gloss, p_disease, nrow = 1, rel_widths = c(1, 0.65),
 ## ---- chr4 column: Manhattan/LD/gene track + candidate expr + disease chart -
 
 tpm_pval <- if (file.exists('chr4_candidate_tpm_significance.csv')) read_csv('chr4_candidate_tpm_significance.csv', show_col_types = FALSE)$p_value[1] else NULL
-expr_genotypes <- read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/chr4_expression_genotypes.csv', show_col_types = FALSE)
+expr_genotypes <- read_csv('chr4_expression_genotypes.csv', show_col_types = FALSE)
 p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, expr_genotypes, '', chr4_colors, 'Sobic.004G286700', tpm_pval)
 p_expr <- p_expr + labs(y = 'Expression (TPM)', title = 'Sobic.004G286700') +
   theme(plot.title = element_text(size = 9, face = 'italic'))
@@ -360,7 +355,7 @@ p_expr <- p_expr + labs(y = 'Expression (TPM)', title = 'Sobic.004G286700') +
 # disease chart used before this update, just kept here for the chr4 lead marker instead of
 # being narrowed to NE only.
 human_scores_marker_chr4 <- human_scores %>% filter(!is.na(.data[[lead_marker_cols$chr4]]) & environment=='NE') 
-chr4_marker_pvals <- load_marker_pvals('../../../data/figure_inputs/chr2_leaf_water_figure/chr4_human_current.csv')
+chr4_marker_pvals <- load_marker_pvals('chr4_human_current.csv')
 p_disease_chr4 <- rlang::inject(
   plotAssociationStability(human_scores_marker_chr4, human_score, !!rlang::sym(lead_marker_cols$chr4),
                            colors = chr4_colors,
@@ -399,12 +394,12 @@ right_col <- assemble_locus_column(top4, row4_chr4, 'd')
 
 # Raw leaf-water fraction, with current PANICLE tests (including the one heterozygote).
 # Only homozygotes are displayed; the fitted contrast is ALT/ALT minus REF/REF.
-water_data <- read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/phenotypes.csv', show_col_types = FALSE) %>%
+water_data <- read_csv('water_phenotypes.csv', show_col_types = FALSE) %>%
   filter(peak_dose %in% c(0, 2)) %>%
   mutate(environment = factor(env_id, levels = c('MI2020', 'MI2021', 'MI2020+MI2021'),
                               labels = c('Michigan 2020', 'Michigan 2021', 'Pooled')),
          allele = factor(peak_dose, levels = c(0, 2), labels = c('GGAGT/GGAGT', 'G/G')))
-water_tests <- read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/tests.csv', show_col_types = FALSE) %>%
+water_tests <- read_csv('water_tests.csv', show_col_types = FALSE) %>%
   filter(analysis == 'water_fraction_current') %>%
   mutate(environment = factor(group, levels = c('MI2020', 'MI2021', 'MI2020+MI2021'),
                               labels = c('Michigan 2020', 'Michigan 2021', 'Pooled')),

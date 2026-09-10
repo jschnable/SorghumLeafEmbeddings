@@ -8,6 +8,10 @@ consolidated here. Each embedding uses its own strongest marker within the hotsp
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.metadata
+import tempfile
+import zipfile
 import json
 import subprocess
 import sys
@@ -70,42 +74,96 @@ def prepare_selected_embeddings(source: Path, representatives: pd.DataFrame, out
     write_embedding_table(table[metadata + traits], output, feature_cols=traits)
 
 
+def stream_sha256(handle) -> str:
+    digest = hashlib.sha256()
+    for block in iter(lambda: handle.read(1024 * 1024), b""):
+        digest.update(block)
+    return digest.hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    with path.open("rb") as handle:
+        return stream_sha256(handle)
+
+
+def blue_provenance(selected_embeddings: Path, traits: list[str], vc_cpu: int) -> dict:
+    # Hash NPZ members, excluding ZIP timestamps that can change on a rewrite.
+    with zipfile.ZipFile(selected_embeddings) as archive:
+        members = {}
+        for name in sorted(archive.namelist()):
+            with archive.open(name) as handle:
+                members[name] = stream_sha256(handle)
+    inputs = ["data/provided/field_image_metadata.csv", "data/provided/image_ids_exclude.csv",
+              "scripts/calculate_blues.py", "scripts/embedding_io.py", "scripts/run_embedding_replication.py"]
+    r_versions = subprocess.check_output(
+        ["Rscript", "-e", 'cat(R.version.string, as.character(packageVersion("lme4")), '
+         'as.character(packageVersion("Matrix")), sep="\\n")'], text=True
+    ).strip()
+    return {
+        "schema": 1, "embedding_members": members, "traits": traits, "vc_cpu": vc_cpu,
+        "inputs": {name: file_sha256(REPO_ROOT / name) for name in inputs},
+        "python": sys.version,
+        "packages": {name: importlib.metadata.version(name) for name in ["numpy", "pandas", "rpy2"]},
+        "R": r_versions,
+    }
+
+
 def blues_are_complete(blue_dir: Path, traits: list[str]) -> bool:
+    if not traits:
+        return False
     for environment in ENVIRONMENTS:
         path = blue_dir / f"blues_{environment}.csv"
-        if not path.exists():
-            return False
-        if not set(traits).issubset(pd.read_csv(path, nrows=0).columns):
+        try:
+            frame = pd.read_csv(path, dtype={"genotype": str})
+            if frame.empty or not {"genotype", *traits}.issubset(frame.columns):
+                return False
+            ids = frame["genotype"].str.strip()
+            if ids.isna().any() or ids.eq("").any() or ids.duplicated().any():
+                return False
+            values = frame[traits].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+            if not np.isfinite(values).all():
+                return False
+        except (OSError, ValueError, pd.errors.ParserError):
             return False
     return True
 
 
+def blue_output_hashes(blue_dir: Path) -> dict[str, str]:
+    return {env: file_sha256(blue_dir / f"blues_{env}.csv") for env in ENVIRONMENTS}
+
+
 def calculate_blues(selected_embeddings: Path, blue_dir: Path, traits: list[str], vc_cpu: int, reuse: bool) -> None:
+    provenance = blue_provenance(selected_embeddings, traits, vc_cpu)
+    manifest = blue_dir / "reuse_provenance.json"
     if reuse and blues_are_complete(blue_dir, traits):
-        return
+        try:
+            saved = json.loads(manifest.read_text())
+            if saved == {"inputs": provenance, "outputs": blue_output_hashes(blue_dir)}:
+                return
+        except (OSError, ValueError):
+            pass
     blue_dir.mkdir(parents=True, exist_ok=True)
     trait_regex = "^(" + "|".join(traits) + ")$"
-    subprocess.run(
-        [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "calculate_blues.py"),
-            "--scores",
-            str(selected_embeddings),
-            "--out-dir",
-            str(blue_dir),
-            "--environment",
-            "all",
-            "--trait-regex",
-            trait_regex,
-            "--skip-summaries",
-            "--progress-every",
-            "0",
-            "--vc-cpu",
-            str(vc_cpu),
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-    )
+    # Stage a complete fit so failed runs cannot mix old and new environments.
+    with tempfile.TemporaryDirectory(prefix=".fit-", dir=blue_dir) as temporary:
+        staged = Path(temporary)
+        subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts/calculate_blues.py"),
+             "--scores", str(selected_embeddings.resolve()), "--out-dir", str(staged.resolve()),
+             "--environment", "all", "--trait-regex", trait_regex, "--skip-summaries",
+             "--progress-every", "0", "--vc-cpu", str(vc_cpu)],
+            cwd=REPO_ROOT, check=True,
+        )
+        if not blues_are_complete(staged, traits):
+            raise ValueError("BLUE fitting did not produce valid tables for all environments; previous outputs retained")
+        completed = {"inputs": provenance, "outputs": blue_output_hashes(staged)}
+        manifest.unlink(missing_ok=True)
+        for environment in ENVIRONMENTS:
+            name = f"blues_{environment}.csv"
+            (staged / name).replace(blue_dir / name)
+        staged_manifest = staged / manifest.name
+        staged_manifest.write_text(json.dumps(completed, indent=2) + "\n")
+        staged_manifest.replace(manifest)
 
 
 def combine_blues(blue_dir: Path, output: Path) -> None:
@@ -459,7 +517,12 @@ def select_all_hotspot_embedding_pairs(peaks_path: Path, gwas_path: Path) -> pd.
                     "discovery_p_value": float(best["p_value"]),
                 }
             )
-    pairs = pd.DataFrame(rows)
+    columns = ["hotspot", "hotspot_slug", "chrom", "peak_start_bp", "peak_end_bp",
+               "published_max_embeddings_per_100kb", "lead_marker_pos", "lead_marker",
+               "ref", "alt", "representative_embedding",
+               "n_significant_markers_for_embedding_in_hotspot",
+               "discovery_effect_alt_allele", "discovery_p_value"]
+    pairs = pd.DataFrame(rows, columns=columns)
     if pairs.duplicated(["hotspot", "representative_embedding"]).any():
         raise ValueError("Hotspot-embedding pairs are not unique")
     return pairs
@@ -534,6 +597,8 @@ def main() -> None:
     smt.DEFAULT_COMMON_GENOTYPES_LIST = args.common_genotypes
     args.out_dir.mkdir(parents=True, exist_ok=True)
     pairs = select_all_hotspot_embedding_pairs(args.peaks, args.gwas_significant)
+    if pairs.empty:
+        raise SystemExit("No significant hotspot-embedding pairs to replicate; no replication outputs were replaced")
     pairs.to_csv(args.out_dir / "hotspot_embedding_pairs.csv", index=False)
 
     selected_embeddings = args.out_dir / "hotspot_embedding_scores.npz"

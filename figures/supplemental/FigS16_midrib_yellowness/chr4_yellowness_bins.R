@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS16_midrib_yellowness"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Standalone figure: chr4:65.4 Mb GDSL/CE16 (Sobic.004G286700) lead-marker effect on leaf
 # yellowness (b*, CIELAB) across leaf width, by bin. Extracted out of gdsl_hotspots.R, where
 # this plot used to be the bottom-right panel of panel B; that slot now instead shows a
@@ -14,7 +9,7 @@ setwd(file.path(.repo_root, "figures/supplemental/FigS16_midrib_yellowness"))
 # mirror panel A's chr2 disease panel. Lives in its own directory (rather than
 # figures/supplemental/FigS11_gdsl_hotspots/) since it's otherwise unrelated to that figure. Reads
 # bin_pergeno.csv.gz / lead_marker_genotypes.csv, staged into this directory by
-# scripts/subset_figure_data.R.
+# scripts/prepare_figure_data.R.
 library(tidyverse)
 library(paletteer)
 

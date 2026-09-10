@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS17_chr4_panicle_mass"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Supplemental figure: single_plant_panicle_dry_weight_g (MI2020) by allele at the
 # chr4:69.4 Mb end-peak lead marker (4:69421678, C>A; see figures/chr4_end_peak/meta.json).
 # Per-genotype mean of MI2020 plants, comparing REF and ALT homozygotes only.

@@ -325,6 +325,17 @@ def result_subset(
     return out
 
 
+def write_significant_markers(sig_rows: list[pd.DataFrame], markers: pd.DataFrame,
+                              threshold: float, output: Path) -> None:
+    if sig_rows:
+        pd.concat(sig_rows, ignore_index=True).to_csv(output, index=False)
+    else:
+        empty = np.array([], dtype=float)
+        result_subset(markers, "", np.array([], dtype=int), empty, empty, empty, empty, threshold).to_csv(
+            output, index=False
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--blue-file", required=True, type=Path)
@@ -543,10 +554,7 @@ def main() -> None:
 
     t0 = time.perf_counter()
     pd.DataFrame(summary_rows).to_csv(args.out_dir / "gwas_summary.csv", index=False)
-    if sig_rows:
-        pd.concat(sig_rows, ignore_index=True).to_csv(args.out_dir / "significant_markers.csv", index=False)
-    elif (args.out_dir / "significant_markers.csv").exists():
-        (args.out_dir / "significant_markers.csv").unlink()
+    write_significant_markers(sig_rows, markers, threshold, args.out_dir / "significant_markers.csv")
     if top_rows:
         pd.concat(top_rows, ignore_index=True).to_csv(args.out_dir / "top_markers.csv", index=False)
     elif (args.out_dir / "top_markers.csv").exists():

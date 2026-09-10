@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS7_partial_correlations"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Supplemental figure: for each of the 12 GWAS embedding hotspots, do the pairwise
 # correlations among embedding dimensions inside that hotspot survive conditioning on the
 # other embeddings in the window (i.e. are hits mostly independent signals, or mostly
@@ -17,8 +12,6 @@ setwd(file.path(.repo_root, "figures/supplemental/FigS7_partial_correlations"))
 # GWAS trait was disease-associated) used to color and order the two panels below:
 #   - partial_correlation_distributions.png: one partial-r^2 histogram per hotspot,
 #     colored by disease association.
-#   - partial_correlation_by_disease_linkage.png: partial-r^2 pooled across all embedding
-#     pairs, boxplotted by disease-linked vs. not, with a Wilcoxon rank-sum bracket.
 library(tidyverse)
 library(paletteer)
 library(cowplot)
@@ -86,38 +79,3 @@ disease_legend <- legend_components[[which(map_lgl(legend_components, ~ is(.x, '
 hist_grid <- plot_grid(plotlist = hist_plots, ncol = 3, nrow = 4, labels = NULL)
 distributions <- plot_grid(disease_legend, hist_grid, ncol = 1, rel_heights = c(0.06, 1))
 ggsave('partial_correlation_distributions.png', plot = distributions, width = 6.5, height = 7, units = 'in', dpi = 300, bg = 'white')
-
-## ---- panel 2: pooled partial-r^2 by disease linkage, with Wilcoxon bracket -----------
-
-partial_cor <- partial_cor %>%
-  left_join(dplyr::select(hotspot_master, peak_marker, disease_associated), by = c('hotspot' = 'peak_marker')) %>%
-  mutate(disease_linked = disease_associated == 'Y')
-
-cross_partial_cor <- read_csv('../../../data/generatable/cross_hotspot_embedding_pair_partial_correlations.csv') %>% 
-  mutate(pair = str_c(response_embedding, predictor_embedding, sep = '_'), 
-         comp_type = 'cross_hotspot')
-partial_cor <- partial_cor %>% 
-  mutate(pair = str_c(response_embedding, predictor_embedding, sep = '_'), 
-         comp_type = 'within_hotspot')
-
-partial_all <- bind_rows(cross_partial_cor, partial_cor)
-
-disease_linked_embeddings <- union(partial_cor$response_embedding[partial_cor$disease_linked], partial_cor$predictor_embedding[partial_cor$disease_linked])
-
-partial_all <- partial_all %>% 
-  mutate(disease_linked = predictor_embedding %in% disease_linked_embeddings & 
-           response_embedding %in% disease_linked_embeddings)
-
-plot <- ggplot(partial_all, aes(disease_linked, partial_r^2, fill = comp_type)) + 
-  geom_boxplot() + 
-  scale_x_discrete(name = 'Disease-Linked',
-                   labels = c('No', 'Yes')) +
-  scale_y_continuous(name = expression('Partial Spearman'~rho^2)) +
-  scale_fill_manual(name = 'Hotspot Association', 
-                    labels = c('Different Hotspots', 'Same Hotspot'), 
-                    values = paletteer_d('nationalparkcolors::Acadia')[3:4]) +
-  theme_use
-plot
-
-
-ggsave(file.path(.repo_root, 'figures/supplemental/FigS8_disease_linkage_correlations/partial_correlation_by_disease_linkage_from_code.png'), plot = plot, width = 5, height = 3, dpi = 300, bg = 'white')

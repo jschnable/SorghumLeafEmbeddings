@@ -5,11 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "scripts" / "extract_embeddings.py").is_file())
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-
-
-FIGURE_DIR = REPO_ROOT / "figures/supplemental/FigS3_exg_leaf_gallery"
+FIGURE_DIR = Path(__file__).resolve().parent
 
 # Segmentation defaults, mirroring scripts/extract_embeddings.py.
 MASK_PIXELS_MIN = 750_000
@@ -33,6 +29,10 @@ GAP = 10
 
 def segment_to_rgba(image_path: str) -> Image.Image | None:
     """Segment a source jpg and return a tight RGBA crop with the background made transparent."""
+    repo_root = next((p for p in FIGURE_DIR.parents if (p / "scripts/segment_leaf.py").is_file()), None)
+    if repo_root is None:
+        raise RuntimeError("Rebuilding crops requires the analysis scripts in the full repository; render bundled panels without --source-dir.")
+    sys.path.insert(0, str(repo_root / "scripts"))
     import cv2
     import numpy as np
     import segment_leaf

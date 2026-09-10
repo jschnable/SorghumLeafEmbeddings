@@ -8,6 +8,22 @@ The phenotype preparation reuses `calculate_blues.py` with genotype fixed, raw m
 
 `summary.json` records marker counts, minimum p-values, numbers passing the exact effective-Bonferroni cutoff and genomic inflation factors. Lambda is the median one-degree-of-freedom chi-square statistic implied by the marker p-values, divided by the null median. All valid marker p-values enter both the statistics and plots. No sensitivity analysis or post-hoc phenotype exclusions are used.
 
+## Rendering inputs
+
+This figure retains its full generated input dependency because both plots use all
+6,422,975 markers per trait. Bundling those results would exceed the 1 MB budget;
+no marker thinning or rounding is used. In the full repository the script locates
+`data/generatable/disease_gwas/gwas/` automatically. A copied figure directory can
+use the same full results explicitly:
+
+```bash
+python disease_gwas.py --gwas-dir /path/to/disease_gwas/gwas
+```
+
+The result directory contains `effective_tests.json` and
+`traits/{human_score,exg_raw,exg_logit}_marker_pvalues.csv`. Output files default to
+the directory beside the renderer, independently of the current working directory.
+
 ## Plot style provenance
 
 Typography, mathematical p-value labels, axis lines and dashed threshold follow this manuscript's `figures/supplemental/FigS13_lysm_hotspot/lysm_hotspot.R`. Genome-wide chromosome labels and alternating black/darkgrey colors follow the local mycobiome manuscript script `/home/james/software/sorghum-maize-mycobiome/src/figures/figure7/ColletGWASCombinedManualRelAbundanceManhattan.R`. Chromosome offsets use the marker coordinates in this VCF, instead of borrowing chromosome lengths from another genome assembly. QQ plotting positions follow this repository's `run_gwas_panicle.py`: `(rank - 0.5) / N`.

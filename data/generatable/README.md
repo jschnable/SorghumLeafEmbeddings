@@ -17,5 +17,7 @@ These datasets are produced by the analysis workflows. See [scripts/README.md](.
 | `all_hotspot_embedding_replication/` | `run_embedding_replication.py` | Discovery/validation pair tests and replication summaries. |
 | `hotspot_embedding_pair_partial_correlations.csv`, `cross_hotspot_embedding_pair_partial_correlations.csv` | `run_embedding_correlations.py` | Within-/between-hotspot adjusted correlation tables. |
 | `loci/<locus>/` | `prepare_locus_data.py` | Regional GWAS NPZ, gene tracks, LD and threshold metadata. |
-| `phwas/<marker>/` | `run_phwas_panicle.py` | General external-trait/environment association screen. |
+| `phwas/*_phwas_results.csv` | `run_phwas_panicle.py` | General external-trait/environment association screen. |
 | `yellowness/bin_pergeno.csv` | `compute_yellowness_profiles.py` | Per-genotype transverse leaf-colour profiles. |
+
+Dedicated plotting exports are stored with each figure. `scripts/prepare_correlation_figure_inputs.R` exports the within-/cross-hotspot correlation summaries; full pairwise results remain here.

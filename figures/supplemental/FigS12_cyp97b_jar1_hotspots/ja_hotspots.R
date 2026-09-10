@@ -1,12 +1,7 @@
-# Run with Rscript from the repository root; figure inputs remain under figures/.
+# Run with Rscript; inputs and outputs are beside this script.
 .script_file <- sub("^--file=", "", commandArgs()[grepl("^--file=", commandArgs())][1])
-.repo_root <- dirname(normalizePath(.script_file))
-while (!file.exists(file.path(.repo_root, "scripts", "extract_embeddings.py"))) {
-  .parent <- dirname(.repo_root)
-  if (.parent == .repo_root) stop("Cannot locate repository root")
-  .repo_root <- .parent
-}
-setwd(file.path(.repo_root, "figures/supplemental/FigS12_cyp97b_jar1_hotspots"))
+.figure_dir <- dirname(normalizePath(.script_file))
+setwd(.figure_dir)
 # Supplemental figure: two disease-linked leaf-embedding hotspots with candidate cis-eQTLs.
 # Left  = chr4:4.7-4.8 Mb, candidate CYP97B carotenoid hydroxylase Sobic.004G057900.
 # Right = chr9:61.9-62.4 Mb, candidate JAR1 jasmonate-Ile ligase Sobic.009G249900.
@@ -14,7 +9,7 @@ setwd(file.path(.repo_root, "figures/supplemental/FigS12_cyp97b_jar1_hotspots"))
 # Nebraska2025 only (no other environments, no NE-common-genotype subset).
 # Expression boxes show untransformed SG2021 TPM and their displayed p-values come from
 # marker~raw-TPM PANICLE models on the same data (zeros retained).
-# Expression/locus inputs come from scripts/subset_figure_data.R; current disease
+# Expression/locus inputs come from scripts/prepare_figure_data.R; current disease
 # inputs are retained as frozen candidate-panel tables.
 library(tidyverse)
 library(paletteer)
@@ -163,7 +158,7 @@ plot_disease_blue <- function(human_score_blue, geno_col, short_label, colors, p
 
 build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_label, highlight_color, allele_colors, panel_labels)
 {
-  gwas <- read_csv(str_c(prefix, '_region_gwas.csv.gz'), show_col_types = FALSE)
+  gwas <- readRDS(str_c(prefix, '_region_gwas.rds')) %>% mutate(trait = as.character(trait))
   ld <- read_csv(str_c(prefix, '_ld_track.csv'), show_col_types = FALSE)
   genes <- read_csv(str_c(prefix, '_gene_models.csv'), show_col_types = FALSE)
   exons <- read_csv(str_c(prefix, '_gene_exons.csv'), show_col_types = FALSE)
@@ -212,11 +207,11 @@ build_locus_column <- function(prefix, chrom_label, candidate_id, candidate_labe
 
 lead_marker_genotypes <- read_csv('lead_marker_genotypes.csv', show_col_types = FALSE)
 lead_marker_cols <- list(chr4 = names(lead_marker_genotypes)[2], chr9 = names(lead_marker_genotypes)[3])
-disease_inputs <- '../../../data/figure_inputs/candidate_disease_panels'
+disease_inputs <- 'disease_inputs'
 disease_genotypes <- read_csv(file.path(disease_inputs, 'genotypes.csv'), show_col_types = FALSE)
 disease_tests <- read_csv(file.path(disease_inputs, 'tests.csv'), show_col_types = FALSE)
 
-human_score_blue <- read_csv('../FigS13_lysm_hotspot/human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
+human_score_blue <- read_csv('human_score_blue_nebraska.csv', show_col_types = FALSE) %>%
   inner_join(disease_genotypes, join_by(genotype), relationship = 'many-to-one')
 
 chr4_colors <- paletteer_d('RColorBrewer::Paired')[c(4, 3)]
