@@ -170,7 +170,7 @@ make_sliding_windows <- function(max_bp, window, step, chromosome)
   return(windows)
 }
 
-getHotspots <- function(.data, group, window_size=1e5, step_size=2e4, 
+getHotspots <- function(.data, group, window_size=1e5, step_size=1e5, 
                         species='sorghum', chr=CHROM, pos=POS, chrLengths = NULL)
 {
   if(species=='maize')
