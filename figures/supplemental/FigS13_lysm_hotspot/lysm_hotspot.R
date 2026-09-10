@@ -235,4 +235,4 @@ bottom_row <- plot_grid(plotlist = panels, nrow = 1, labels = panel_labels, labe
 lysm_hotspot <- plot_grid(top_stack, bottom_row, ncol = 1, rel_heights = c(4.8, 2.3),
                           labels = c('a', ''), label_size = 11)
 
-ggsave('lysm_hotspot.png', plot = lysm_hotspot, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
+ggsave('lysm_hotspot.svg', plot = lysm_hotspot, dpi = 300, bg = 'white', width = 6.5, height = 6.5)

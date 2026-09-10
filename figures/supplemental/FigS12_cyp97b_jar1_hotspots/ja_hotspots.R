@@ -221,4 +221,4 @@ left_col <- build_locus_column('chr4', ' 4', 'Sobic.004G057900', 'Sobic.004G0579
 right_col <- build_locus_column('chr9', ' 9', 'Sobic.009G249900', 'Sobic.009G249900', '#B15928FF', chr9_colors, c('d', 'e', 'f'))
 
 ja_hotspots <- plot_grid(left_col, right_col, ncol = 2)
-ggsave('ja_hotspots.png', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
+ggsave('ja_hotspots.svg', plot = ja_hotspots, dpi = 300, bg = 'white', width = 6.5, height = 6.5)
