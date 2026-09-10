@@ -220,7 +220,7 @@ plot_candidate_expression <- function(expr_path, geno_col, marker_tbl, short_lab
       annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
               y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
               linewidth = 0.4) +
-      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 9, size.unit = 'pt') +
       scale_y_continuous(name = 'Expression (TPM)', limits = c(max(c(0, r[1] - pad)), r[2] + pad))
   }
 }
@@ -255,7 +255,7 @@ plot_gloss_boxplot <- function(gloss_path, geno_col, marker_tbl, short_label, co
       annotate('segment', x = c(1, 1, 2), xend = c(1, 2, 2),
               y = c(y_bracket - tick, y_bracket, y_bracket), yend = c(y_bracket, y_bracket, y_bracket - tick),
               linewidth = 0.4) +
-      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 7, size.unit = 'pt') +
+      annotate('text', x = 1.5, y = y_bracket, label = fmt_p(pval), vjust = -0.3, size = 9, size.unit = 'pt') +
       scale_y_continuous(name = 'Leaf Gloss\n(Specular Fraction)', limits = c(r[1] - pad, r[2] + pad))
   }
 }
@@ -339,14 +339,14 @@ p_disease <- p_disease +
   guides(fill = guide_legend(title = NULL, ncol = 1)) +
   scale_y_continuous(name = 'Human disease\nscore BLUE', expand = expansion(mult = c(0, 0.15))) +
   theme(legend.key.size = unit(0.3, 'cm'),
-       legend.position = 'bottom',
-       legend.text = element_text(size = 7, color = 'black'),
+       legend.position = 'top',
+       legend.text = element_text(size = 9, color = 'black'),
        legend.title = element_text(size = 9, color = 'black'),
        legend.margin = margin(0, 0, 0, 0),
        legend.box.margin = margin(0, 0, -4, 0))
 
 row4_chr2 <- plot_grid(p_gloss, p_disease, nrow = 1, rel_widths = c(1, 0.65),
-                       labels = c('b', 'c'), label_size = 11)
+                       labels = c('b', 'c'), label_size = 9)
 
 ## ---- chr4 column: Manhattan/LD/gene track + candidate expr + disease chart -
 
@@ -354,7 +354,7 @@ tpm_pval <- if (file.exists('chr4_candidate_tpm_significance.csv')) read_csv('ch
 expr_genotypes <- read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/chr4_expression_genotypes.csv', show_col_types = FALSE)
 p_expr <- plot_candidate_expression('chr4_candidate_expression.csv', lead_marker_cols$chr4, expr_genotypes, '', chr4_colors, 'Sobic.004G286700', tpm_pval)
 p_expr <- p_expr + labs(y = 'Expression (TPM)', title = 'Sobic.004G286700') +
-  theme(plot.title = element_text(size = 8, face = 'italic'))
+  theme(plot.title = element_text(size = 9, face = 'italic'))
 
 # across all four sampled environments (NE, NE-C, AL, GA) -- the same format panel A's
 # disease chart used before this update, just kept here for the chr4 lead marker instead of
@@ -372,13 +372,13 @@ p_disease_chr4 <- p_disease_chr4 +
   guides(fill = guide_legend(title = NULL, ncol = 1)) +
   scale_y_continuous(name = 'Human disease\nscore BLUE', expand = expansion(mult = c(0, 0.15))) +
   theme(legend.key.size = unit(0.3, 'cm'),
-       legend.position = 'bottom',
-       legend.text = element_text(size = 7, color = 'black'),
+       legend.position = 'top',
+       legend.text = element_text(size = 9, color = 'black'),
        legend.title = element_text(size = 9, color = 'black'),
        legend.margin = margin(0, 0, 0, 0),
        legend.box.margin = margin(0, 0, -4, 0))
 
-row4_chr4 <- plot_grid(p_expr, p_disease_chr4, nrow = 1, labels = c('e', 'f'), label_size = 11, rel_widths = c(1, 0.65))
+row4_chr4 <- plot_grid(p_expr, p_disease_chr4, nrow = 1, labels = c('e', 'f'), label_size = 9, rel_widths = c(1, 0.65))
 
 ## ---- assemble ---------------------------------------------------------------
 
@@ -391,7 +391,7 @@ assemble_locus_column <- function(top, row4, top_label)
   top_stack <- plot_grid(top$p_man, top$p_ld, top$p_gene, ncol = 1, align = 'v', axis = 'lr',
                          rel_heights = c(2.5, 1.0, 1.3))
   plot_grid(top_stack, row4, ncol = 1, align = 'v', axis = 'lr', rel_heights = c(4.8, 2.3),
-           labels = c(top_label, ''), label_size = 11)
+           labels = c(top_label, ''), label_size = 9)
 }
 
 left_col <- assemble_locus_column(top2, row4_chr2, 'a')
@@ -412,13 +412,13 @@ water_tests <- read_csv('../../../data/figure_inputs/chr2_leaf_water_figure/test
 water_counts <- water_data %>% count(environment, allele) %>% mutate(label = paste0('n = ', n))
 p_water <- ggplot(water_data, aes(allele, 100 * water_fraction, fill = allele)) +
   geom_boxplot(width = 0.5, outlier.size = 0.6, linewidth = 0.4) +
-  geom_text(data = water_counts, aes(x = allele, y = 25, label = label), inherit.aes = FALSE, size = 2.5) +
-  geom_text(data = water_tests, aes(x = 1.5, y = 92, label = label), inherit.aes = FALSE, size = 2.5) +
+  geom_text(data = water_counts, aes(x = allele, y = 25, label = label), inherit.aes = FALSE, size = 9, size.unit = 'pt') +
+  geom_text(data = water_tests, aes(x = 1.5, y = 92, label = label), inherit.aes = FALSE, size = 9, size.unit = 'pt') +
   facet_wrap(~environment, nrow = 1) +
   scale_fill_manual(values = chr2_colors, guide = 'none') +
   scale_y_continuous(name = 'Leaf water content (%)', limits = c(20, 96), breaks = c(30, 50, 70, 90)) +
   labs(x = 'Lead-marker homozygous genotype') + theme_use +
-  theme(strip.text = element_text(size = 9), axis.text.x = element_text(size = 8))
+  theme(strip.text = element_text(size = 9), axis.text.x = element_text(size = 9))
 
 gdsl_hotspots <- plot_grid(plot_grid(left_col, right_col, ncol = 2), p_water,
                            ncol = 1, rel_heights = c(5.65, 1.85), labels = c('', 'g'), label_size = 11)
